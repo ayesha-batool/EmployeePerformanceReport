@@ -163,4 +163,36 @@ class AchievementAgent:
             "recent_achievements": len(recent),
             "achievements": achievements[:10]  # Last 10
         }
+    
+    def update_achievement(self, achievement_id: str, employee_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+        """Update an achievement (only by owner)"""
+        achievements = self.data_manager.load_data("achievements") or []
+        
+        for achievement in achievements:
+            if achievement.get("id") == achievement_id and achievement.get("employee_id") == employee_id:
+                # Only allow updating certain fields
+                allowed_fields = ["title", "description", "category", "impact"]
+                for field in allowed_fields:
+                    if field in updates:
+                        achievement[field] = updates[field]
+                achievement["updated_at"] = datetime.now().isoformat()
+                
+                self.data_manager.save_data("achievements", achievements)
+                return {"success": True, "achievement": achievement}
+        
+        return {"success": False, "error": "Achievement not found or unauthorized"}
+    
+    def delete_achievement(self, achievement_id: str, employee_id: str) -> Dict[str, Any]:
+        """Delete an achievement (only by owner)"""
+        achievements = self.data_manager.load_data("achievements") or []
+        original_count = len(achievements)
+        
+        achievements = [a for a in achievements 
+                       if not (a.get("id") == achievement_id and a.get("employee_id") == employee_id)]
+        
+        if len(achievements) < original_count:
+            self.data_manager.save_data("achievements", achievements)
+            return {"success": True}
+        
+        return {"success": False, "error": "Achievement not found or unauthorized"}
 

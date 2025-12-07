@@ -27,7 +27,7 @@ class ExportAgent:
     
     def export_to_csv(self, data: List[Dict[str, Any]], filename: Optional[str] = None,
                       include_metadata: bool = True) -> Dict[str, Any]:
-        """Export data to CSV format with enhanced formatting"""
+        """Export data to CSV format with enhanced formatting and statistics"""
         if not data:
             return {"success": False, "error": "No data to export"}
         
@@ -37,6 +37,40 @@ class ExportAgent:
         if include_metadata:
             output.write(f"# Export Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             output.write(f"# Total Records: {len(data)}\n")
+            
+            # Add summary statistics
+            if data:
+                # Calculate statistics based on data type
+                if "status" in data[0]:
+                    status_counts = {}
+                    for record in data:
+                        status = record.get("status", "unknown")
+                        status_counts[status] = status_counts.get(status, 0) + 1
+                    output.write(f"# Status Summary: {', '.join([f'{k}: {v}' for k, v in status_counts.items()])}\n")
+                
+                if "priority" in data[0]:
+                    priority_counts = {}
+                    for record in data:
+                        priority = record.get("priority", "unknown")
+                        priority_counts[priority] = priority_counts.get(priority, 0) + 1
+                    output.write(f"# Priority Summary: {', '.join([f'{k}: {v}' for k, v in priority_counts.items()])}\n")
+                
+                # Date range if dates exist
+                date_fields = [k for k in data[0].keys() if "date" in k.lower() or "created" in k.lower()]
+                if date_fields:
+                    dates = []
+                    for record in data:
+                        for field in date_fields:
+                            val = record.get(field)
+                            if val:
+                                try:
+                                    dt = datetime.fromisoformat(str(val).replace('Z', '+00:00'))
+                                    dates.append(dt)
+                                except:
+                                    pass
+                    if dates:
+                        output.write(f"# Date Range: {min(dates).strftime('%Y-%m-%d')} to {max(dates).strftime('%Y-%m-%d')}\n")
+            
             output.write("#\n")
         
         # Get all unique fieldnames from all records
@@ -218,6 +252,37 @@ class ExportAgent:
         # Get performance history
         performance_history = sorted(emp_perf, key=lambda x: x.get("evaluated_at", ""), reverse=True)
         
+        # Calculate additional statistics
+        projects = self.data_manager.load_data("projects") or []
+        emp_projects = [p for p in projects if employee_id in p.get("team_members", [])]
+        
+        goals = self.data_manager.load_data("goals") or []
+        emp_goals = [g for g in goals if g.get("employee_id") == employee_id]
+        completed_goals = [g for g in emp_goals if g.get("status") == "completed"]
+        
+        feedback = self.data_manager.load_data("feedback") or []
+        emp_feedback = [f for f in feedback if f.get("employee_id") == employee_id]
+        
+        achievements = self.data_manager.load_data("achievements") or []
+        emp_achievements = [a for a in achievements if a.get("employee_id") == employee_id]
+        
+        # Calculate task completion rate
+        task_completion_rate = (len([t for t in emp_tasks if t.get("status") == "completed"]) / len(emp_tasks) * 100) if emp_tasks else 0
+        
+        # Calculate average task duration
+        avg_duration = 0
+        if emp_tasks:
+            durations = []
+            for task in emp_tasks:
+                if task.get("created_at") and task.get("completed_at"):
+                    try:
+                        created = datetime.fromisoformat(task["created_at"])
+                        completed = datetime.fromisoformat(task["completed_at"])
+                        durations.append((completed - created).total_seconds() / 86400)  # days
+                    except:
+                        pass
+            avg_duration = sum(durations) / len(durations) if durations else 0
+        
         # Prepare comprehensive JSON report data
         report_data = {
             "report_type": "performance_report",
@@ -229,7 +294,8 @@ class ExportAgent:
                 "email": employee.get("email", ""),
                 "department": employee.get("department", "N/A"),
                 "position": employee.get("position", "N/A"),
-                "status": employee.get("status", "active")
+                "status": employee.get("status", "active"),
+                "hire_date": employee.get("hire_date", "N/A")
             },
             "performance_metrics": {
                 "current_performance": latest_perf.get("performance_score", 0) if latest_perf else 0,
@@ -247,7 +313,28 @@ class ExportAgent:
                 "completed": len([t for t in emp_tasks if t.get("status") == "completed"]),
                 "pending": len([t for t in emp_tasks if t.get("status") == "pending"]),
                 "in_progress": len([t for t in emp_tasks if t.get("status") == "in_progress"]),
-                "overdue": overdue_count
+                "overdue": overdue_count,
+                "completion_rate_percent": round(task_completion_rate, 2),
+                "average_duration_days": round(avg_duration, 2)
+            },
+            "project_statistics": {
+                "total_projects": len(emp_projects),
+                "active_projects": len([p for p in emp_projects if p.get("status") != "completed"]),
+                "completed_projects": len([p for p in emp_projects if p.get("status") == "completed"])
+            },
+            "goal_statistics": {
+                "total_goals": len(emp_goals),
+                "completed_goals": len(completed_goals),
+                "completion_rate": round((len(completed_goals) / len(emp_goals) * 100) if emp_goals else 0, 2)
+            },
+            "feedback_statistics": {
+                "total_feedback": len(emp_feedback),
+                "average_rating": round(sum([f.get("rating", 0) for f in emp_feedback]) / len(emp_feedback), 2) if emp_feedback else 0
+            },
+            "achievement_statistics": {
+                "total_achievements": len(emp_achievements),
+                "verified_achievements": len([a for a in emp_achievements if a.get("verified", False)]),
+                "high_impact": len([a for a in emp_achievements if a.get("impact") == "high"])
             },
             "performance_history": performance_history[:10] if performance_history else [],  # Last 10 evaluations
             "latest_evaluation": latest_perf if latest_perf else None,
@@ -275,11 +362,13 @@ class ExportAgent:
                 "format": "json"
             }
         else:
-            # Fallback to PDF for other formats
+            # Enhanced PDF export with more data
             pdf_data = [
                 {"Metric": "Employee Name", "Value": employee.get("name", "")},
                 {"Metric": "Employee ID", "Value": employee_id},
                 {"Metric": "Department", "Value": employee.get("department", "N/A")},
+                {"Metric": "Position", "Value": employee.get("position", "N/A")},
+                {"Metric": "Email", "Value": employee.get("email", "N/A")},
             ]
             
             if latest_perf:
@@ -288,11 +377,24 @@ class ExportAgent:
                     {"Metric": "Rank", "Value": str(latest_perf.get("rank", "N/A"))},
                     {"Metric": "Trend", "Value": latest_perf.get("trend", "N/A")},
                     {"Metric": "Completion Rate", "Value": f"{latest_perf.get('completion_rate', 0):.2f}%"},
+                    {"Metric": "On-Time Rate", "Value": f"{latest_perf.get('on_time_rate', 0):.2f}%"},
                 ])
             
             pdf_data.extend([
                 {"Metric": "Total Tasks", "Value": str(len(emp_tasks))},
                 {"Metric": "Completed Tasks", "Value": str(len([t for t in emp_tasks if t.get("status") == "completed"]))},
+                {"Metric": "Pending Tasks", "Value": str(len([t for t in emp_tasks if t.get("status") == "pending"]))},
+                {"Metric": "In Progress Tasks", "Value": str(len([t for t in emp_tasks if t.get("status") == "in_progress"]))},
+                {"Metric": "Overdue Tasks", "Value": str(overdue_count)},
+                {"Metric": "Task Completion Rate", "Value": f"{task_completion_rate:.2f}%"},
+                {"Metric": "Average Task Duration (Days)", "Value": f"{avg_duration:.2f}"},
+                {"Metric": "Total Projects", "Value": str(len(emp_projects))},
+                {"Metric": "Active Projects", "Value": str(len([p for p in emp_projects if p.get("status") != "completed"]))},
+                {"Metric": "Total Goals", "Value": str(len(emp_goals))},
+                {"Metric": "Completed Goals", "Value": str(len(completed_goals))},
+                {"Metric": "Goal Completion Rate", "Value": f"{(len(completed_goals) / len(emp_goals) * 100) if emp_goals else 0:.2f}%"},
+                {"Metric": "Total Achievements", "Value": str(len(emp_achievements))},
+                {"Metric": "Verified Achievements", "Value": str(len([a for a in emp_achievements if a.get("verified", False)]))},
             ])
             
             result = self.export_to_pdf(
