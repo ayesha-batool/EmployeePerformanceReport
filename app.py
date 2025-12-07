@@ -1372,12 +1372,22 @@ def display_as_table(data):
         st.dataframe(df, use_container_width=True, hide_index=True)
     elif isinstance(data, list):
         if data and isinstance(data[0], dict):
-            # List of dictionaries - display as table
-            df = pd.DataFrame(data)
+            # List of dictionaries - display as table with index
+            data_with_index = []
+            for idx, item in enumerate(data, start=1):
+                item_copy = item.copy()
+                item_copy['#'] = idx
+                # Move index to first position
+                data_with_index.append({'#': idx, **{k: v for k, v in item_copy.items() if k != '#'}})
+            df = pd.DataFrame(data_with_index)
+            # Reorder columns to put # first
+            cols = ['#'] + [col for col in df.columns if col != '#']
+            df = df[cols]
             st.dataframe(df, use_container_width=True, hide_index=True)
         else:
-            # Simple list
-            df = pd.DataFrame({"Value": data})
+            # Simple list - add index
+            data_with_index = [{'#': idx, 'Value': val} for idx, val in enumerate(data, start=1)]
+            df = pd.DataFrame(data_with_index)
             st.dataframe(df, use_container_width=True, hide_index=True)
     else:
         # Simple value
@@ -2038,7 +2048,17 @@ def projects_page():
         # Show view content immediately
         projects = data_manager.load_data("projects") or []
         if projects:
-            df = pd.DataFrame(projects)
+            # Add index column
+            projects_with_index = []
+            for idx, project in enumerate(projects, start=1):
+                project_copy = project.copy()
+                project_copy['#'] = idx
+                # Move index to first position
+                projects_with_index.append({'#': idx, **{k: v for k, v in project_copy.items() if k != '#'}})
+            df = pd.DataFrame(projects_with_index)
+            # Reorder columns to put # first
+            cols = ['#'] + [col for col in df.columns if col != '#']
+            df = df[cols]
             st.dataframe(df, use_container_width=True)
         st.markdown("---")
         st.markdown("### Or use tabs below to navigate")
@@ -2432,7 +2452,17 @@ def tasks_page():
             else:
                 tasks = []
         if tasks:
-            df = pd.DataFrame(tasks)
+            # Add index column
+            tasks_with_index = []
+            for idx, task in enumerate(tasks, start=1):
+                task_copy = task.copy()
+                task_copy['#'] = idx
+                # Move index to first position
+                tasks_with_index.append({'#': idx, **{k: v for k, v in task_copy.items() if k != '#'}})
+            df = pd.DataFrame(tasks_with_index)
+            # Reorder columns to put # first
+            cols = ['#'] + [col for col in df.columns if col != '#']
+            df = df[cols]
             st.dataframe(df, use_container_width=True)
         st.markdown("---")
         st.markdown("### Or use tabs below to navigate")
@@ -2769,7 +2799,17 @@ def employees_page():
         # Show view content immediately
         employees = data_manager.load_data("employees") or []
         if employees:
-            df = pd.DataFrame(employees)
+            # Add index column
+            employees_with_index = []
+            for idx, employee in enumerate(employees, start=1):
+                employee_copy = employee.copy()
+                employee_copy['#'] = idx
+                # Move index to first position
+                employees_with_index.append({'#': idx, **{k: v for k, v in employee_copy.items() if k != '#'}})
+            df = pd.DataFrame(employees_with_index)
+            # Reorder columns to put # first
+            cols = ['#'] + [col for col in df.columns if col != '#']
+            df = df[cols]
             st.dataframe(df, use_container_width=True)
         st.markdown("---")
         st.markdown("### Or use tabs below to navigate")
@@ -3394,9 +3434,18 @@ def analytics_page():
                     # Employee breakdown
                     if forecast.get("employee_forecasts"):
                         st.subheader("Employee Breakdown")
-                        df_forecast = pd.DataFrame(forecast["employee_forecasts"])
-                        st.dataframe(df_forecast[["employee_id", "current_workload", "forecasted_capacity", 
-                                                 "available_capacity", "utilization_rate"]], use_container_width=True)
+                        forecast_data = forecast["employee_forecasts"]
+                        # Add index column
+                        forecast_with_index = []
+                        for idx, emp in enumerate(forecast_data, start=1):
+                            emp_copy = emp.copy()
+                            emp_copy['#'] = idx
+                            forecast_with_index.append({'#': idx, **{k: v for k, v in emp_copy.items() if k != '#'}})
+                        df_forecast = pd.DataFrame(forecast_with_index)
+                        # Select columns with # first
+                        display_cols = ['#', "employee_id", "current_workload", "forecasted_capacity", 
+                                      "available_capacity", "utilization_rate"]
+                        st.dataframe(df_forecast[display_cols], use_container_width=True)
         
         with sub_tab2:
             st.markdown("#### Project Risk Forecasting")
@@ -3484,7 +3533,17 @@ def analytics_page():
                 
                 # Visualization
                 if correlation_result.get("data"):
-                    df_corr = pd.DataFrame(correlation_result["data"])
+                    corr_data = correlation_result["data"]
+                    # Add index column
+                    corr_with_index = []
+                    for idx, item in enumerate(corr_data, start=1):
+                        item_copy = item.copy()
+                        item_copy['#'] = idx
+                        corr_with_index.append({'#': idx, **{k: v for k, v in item_copy.items() if k != '#'}})
+                    df_corr = pd.DataFrame(corr_with_index)
+                    # Reorder columns to put # first
+                    cols = ['#'] + [col for col in df_corr.columns if col != '#']
+                    df_corr = df_corr[cols]
                     fig = px.scatter(df_corr, x=metric1, y=metric2,
                                     hover_data=["employee_name"],
                                     title=f"Correlation: {metric1} vs {metric2}",
@@ -3855,7 +3914,7 @@ def goals_page():
                         st.markdown("---")
                         
                         # Table rows for this employee's goals
-                        for goal in employee_goals:
+                        for idx, goal in enumerate(employee_goals, start=1):
                             goal_id = goal.get('id')
                             title = goal.get('title', 'Untitled Goal')
                             status = goal.get('status', 'N/A')
@@ -3883,11 +3942,11 @@ def goals_page():
                                 # Managers and owners can edit/delete any goal
                                 btn_col1, btn_col2 = st.columns(2)
                                 with btn_col1:
-                                    if st.button("✏️ Edit", key=f"edit_btn_{goal_id}", use_container_width=True):
+                                    if st.button("✏️ Edit", key=f"manager_edit_btn_{idx}_{goal_id}", use_container_width=True):
                                         st.session_state[f"editing_goal_{goal_id}"] = True
                                         st.rerun()
                                 with btn_col2:
-                                    if st.button("🗑️ Del", key=f"delete_btn_{goal_id}", use_container_width=True, type="secondary"):
+                                    if st.button("🗑️ Del", key=f"manager_delete_btn_{idx}_{goal_id}", use_container_width=True, type="secondary"):
                                         if goal_agent.delete_goal(goal_id):
                                             st.success("Goal deleted!")
                                         st.rerun()
@@ -3927,7 +3986,7 @@ def goals_page():
                 st.markdown("---")
                 
                 # Table rows with action buttons
-                for goal in goals:
+                for idx, goal in enumerate(goals, start=1):
                     goal_id = goal.get('id')
                     title = goal.get('title', 'Untitled Goal')
                     status = goal.get('status', 'N/A')
@@ -3954,7 +4013,7 @@ def goals_page():
                     with row_cols[5]:
                         # Employees can only update progress of their own goals
                         if employee_id and goal.get("employee_id") == employee_id:
-                            if st.button("✏️ Update Progress", key=f"edit_btn_{goal_id}", use_container_width=True):
+                            if st.button("✏️ Update Progress", key=f"employee_edit_btn_{idx}_{goal_id}", use_container_width=True):
                                 st.session_state[f"editing_goal_{goal_id}"] = True
                                 st.rerun()
                         else:
@@ -4557,7 +4616,17 @@ def comparison_page():
             if "department" in item:
                 del item["department"]
         
-        df = pd.DataFrame(comparison_data)
+        # Add index column
+        comparison_with_index = []
+        for idx, comp in enumerate(comparison_data, start=1):
+            comp_copy = comp.copy()
+            comp_copy['#'] = idx
+            # Move index to first position
+            comparison_with_index.append({'#': idx, **{k: v for k, v in comp_copy.items() if k != '#'}})
+        df = pd.DataFrame(comparison_with_index)
+        # Reorder columns to put # first
+        cols = ['#'] + [col for col in df.columns if col != '#']
+        df = df[cols]
         st.dataframe(df, use_container_width=True)
         
         # Chart
@@ -5015,15 +5084,16 @@ def employee_development_page():
         # Review History
         if reviews:
             st.subheader("Review History")
-            review_df = pd.DataFrame([
-                {
+            review_data = []
+            for idx, r in enumerate(reviews, start=1):
+                review_data.append({
+                    "#": idx,
                     "Type": r.get("reviewer_type", "N/A").title(),
                     "Rating": r.get("rating", 0),
                     "Comments": r.get("comments", "N/A")[:50] + "..." if r.get("comments") and len(r.get("comments", "")) > 50 else (r.get("comments", "N/A") or "N/A"),
                     "Date": r.get("created_at", "N/A")[:10]
-                }
-                for r in reviews
-            ])
+                })
+            review_df = pd.DataFrame(review_data)
             st.dataframe(review_df, use_container_width=True, hide_index=True)
     
     # Tab 6: Promotion
@@ -5067,15 +5137,16 @@ def employee_development_page():
             st.subheader("📋 All Eligible Employees")
             eligible_employees = promotion_agent.get_all_eligible_employees()
             if eligible_employees:
-                eligible_df = pd.DataFrame([
-                    {
+                eligible_data = []
+                for idx, e in enumerate(eligible_employees, start=1):
+                    eligible_data.append({
+                        "#": idx,
                         "Employee": e.get("employee_name", "N/A"),
                         "Performance": f"{e.get('performance_score', 0):.1f}",
                         "Attendance": f"{e.get('attendance_percentage', 0):.1f}%",
                         "Goals": f"{e.get('goal_completion_rate', 0):.1f}%"
-                    }
-                    for e in eligible_employees
-                ])
+                    })
+                eligible_df = pd.DataFrame(eligible_data)
                 st.dataframe(eligible_df, use_container_width=True, hide_index=True)
             else:
                 st.info("No employees currently meet all promotion criteria.")
