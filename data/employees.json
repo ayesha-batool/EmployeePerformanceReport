@@ -9,7 +9,7 @@
     "hire_date": "2024-01-15",
     "created_at": "2025-12-06T21:46:10.635977",
     "skills": {
-      "Python": 3,
+      "Python": 4,
       "JavaScript": 2,
       "Node.js": 4,
       "React": 2,
@@ -129,5 +129,13 @@
       "Photoshop": 5,
       "Illustrator": 3
     }
+  },
+  {
+    "id": "9",
+    "name": "e2",
+    "email": "batoolayesha123456@gmail.com",
+    "position": "senier developer",
+    "created_at": "2025-12-07T20:00:39.115732",
+    "updated_at": "2025-12-07T20:00:39.115749"
   }
 ]

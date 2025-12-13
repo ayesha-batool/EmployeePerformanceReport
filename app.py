@@ -12,6 +12,7 @@ import os
 
 # Import all managers and agents
 from components.managers.data_manager import DataManager
+from components.managers.hybrid_data_manager import HybridDataManager
 from components.managers.auth_manager import AuthManager
 from components.agents.task_agent import TaskAgent
 from components.agents.performance_agent import EnhancedPerformanceAgent
@@ -1101,6 +1102,53 @@ st.markdown("""
         display: block !important;
         opacity: 1 !important;
     }
+    
+    /* ===== MULTISELECT TAGS ===== */
+    /* Change multiselect selected item tags from red to blue */
+    [data-baseweb="tag"] {
+        background-color: #00E0FF !important;
+        background: #00E0FF !important;
+        color: #FFFFFF !important;
+        border-color: #00E0FF !important;
+    }
+    
+    /* Multiselect tag hover state */
+    [data-baseweb="tag"]:hover {
+        background-color: #14F1FF !important;
+        border-color: #14F1FF !important;
+    }
+    
+    /* Multiselect input container */
+    [data-baseweb="select"] [data-baseweb="tag"] {
+        background-color: #00E0FF !important;
+        background: #00E0FF !important;
+        color: #FFFFFF !important;
+    }
+    
+    /* Override any red/error colors in multiselect */
+    [data-baseweb="tag"][style*="rgb(255"],
+    [data-baseweb="tag"][style*="red"],
+    [data-baseweb="tag"][style*="#ff"] {
+        background-color: #00E0FF !important;
+        background: #00E0FF !important;
+        border-color: #00E0FF !important;
+    }
+    
+    /* Streamlit multiselect specific classes */
+    .stMultiSelect [data-baseweb="tag"],
+    .stMultiSelect [role="option"][aria-selected="true"] {
+        background-color: #00E0FF !important;
+        background: #00E0FF !important;
+        color: #FFFFFF !important;
+        border-color: #00E0FF !important;
+    }
+    
+    /* Override orange color for .st-dw class */
+    .st-dw {
+        background-color: rgb(7, 16, 79) !important;
+        background: rgb(7, 16, 79) !important;
+    }
+    
     </style>
     <script>
     (function() {
@@ -1509,7 +1557,8 @@ if "authenticated" not in st.session_state:
 if "user" not in st.session_state:
     st.session_state.user = None
 if "data_manager" not in st.session_state:
-    st.session_state.data_manager = DataManager()
+    # Use HybridDataManager which can use API when available, falls back to JSON
+    st.session_state.data_manager = HybridDataManager()
 if "auth_manager" not in st.session_state:
     st.session_state.auth_manager = AuthManager(st.session_state.data_manager)
 
@@ -2155,13 +2204,21 @@ def projects_page():
                                 col_save, col_cancel = st.columns(2)
                                 with col_save:
                                     if st.form_submit_button("💾 Save Changes", key=f"save_btn_{edit_idx}_{project_id}"):
-                                        project['name'] = edit_name
-                                        project['description'] = edit_description
-                                        project['status'] = edit_status
-                                        project['deadline'] = edit_deadline.isoformat() if edit_deadline else None
-                                        # Manager remains unchanged (set at creation)
-                                        project['updated_at'] = datetime.now().isoformat()
-                                        data_manager.save_data("projects", projects)
+                                        # Use API method if available
+                                        if hasattr(data_manager, 'update_project'):
+                                            data_manager.update_project(project_id, {
+                                                "name": edit_name,
+                                                "description": edit_description,
+                                                "status": edit_status,
+                                                "deadline": edit_deadline.isoformat() if edit_deadline else None
+                                            })
+                                        else:
+                                            project['name'] = edit_name
+                                            project['description'] = edit_description
+                                            project['status'] = edit_status
+                                            project['deadline'] = edit_deadline.isoformat() if edit_deadline else None
+                                            project['updated_at'] = datetime.now().isoformat()
+                                            data_manager.save_data("projects", projects)
                                         st.session_state[f"editing_project_{project_id}"] = False
                                         st.success("Project updated!")
                                         st.rerun()
@@ -2237,8 +2294,11 @@ def projects_page():
                                 st.rerun()
                         with btn_col2:
                             if st.button("🗑️ Del", key=f"view_projects_delete_{idx}_{project_id}", use_container_width=True, type="secondary"):
-                                projects = [p for p in projects if p.get("id") != project_id]
-                                data_manager.save_data("projects", projects)
+                                if hasattr(data_manager, 'delete_project'):
+                                    data_manager.delete_project(project_id)
+                                else:
+                                    projects = [p for p in projects if p.get("id") != project_id]
+                                    data_manager.save_data("projects", projects)
                                 st.success("Project deleted!")
                                 st.rerun()
                     else:
@@ -2258,18 +2318,28 @@ def projects_page():
                 
                 if st.form_submit_button("Create Project"):
                     if name:
-                        new_project = {
-                            "id": str(len(projects) + 1),
-                            "name": name,
-                            "description": description,
-                            "status": status,
-                            "deadline": deadline.isoformat() if deadline else None,
-                            "manager": user_email,  # Auto-assign to logged-in user
-                            "created_at": datetime.now().isoformat(),
-                            "updated_at": datetime.now().isoformat()
-                        }
-                        projects.append(new_project)
-                        data_manager.save_data("projects", projects)
+                        # Use API method if available
+                        if hasattr(data_manager, 'create_project'):
+                            new_project = data_manager.create_project({
+                                "name": name,
+                                "description": description,
+                                "status": status,
+                                "deadline": deadline.isoformat() if deadline else None,
+                                "manager": user_email
+                            })
+                        else:
+                            new_project = {
+                                "id": str(len(projects) + 1),
+                                "name": name,
+                                "description": description,
+                                "status": status,
+                                "deadline": deadline.isoformat() if deadline else None,
+                                "manager": user_email,
+                                "created_at": datetime.now().isoformat(),
+                                "updated_at": datetime.now().isoformat()
+                            }
+                            projects.append(new_project)
+                            data_manager.save_data("projects", projects)
                         st.session_state.show_projects_view = True
                         st.rerun()
     
@@ -2577,21 +2647,27 @@ def tasks_page():
                             col_save, col_cancel = st.columns(2)
                             with col_save:
                                 if st.form_submit_button("💾 Update Status"):
-                                    # Update task status
-                                    all_tasks = task_agent.get_tasks()
-                                    updated_task = None
-                                    old_status = task.get('status', 'pending')  # Get old status before update
+                                    # Update task status using API if available
+                                    old_status = task.get('status', 'pending')
+                                    update_data = {"status": new_status}
+                                    if new_status == "completed":
+                                        update_data["completed_at"] = datetime.now().isoformat()
                                     
-                                    for t in all_tasks:
-                                        if t.get('id') == task_id:
-                                            t['status'] = new_status
-                                            t['updated_at'] = datetime.now().isoformat()
-                                            # If marking as completed, add completed_at timestamp
-                                            if new_status == "completed" and not t.get('completed_at'):
-                                                t['completed_at'] = datetime.now().isoformat()
-                                            updated_task = t
-                                            break
-                                    task_agent.data_manager.save_data("tasks", all_tasks)
+                                    if hasattr(task_agent.data_manager, 'update_task'):
+                                        updated_task = task_agent.data_manager.update_task(task_id, update_data)
+                                    else:
+                                        # Fallback to old method
+                                        all_tasks = task_agent.get_tasks()
+                                        updated_task = None
+                                        for t in all_tasks:
+                                            if str(t.get('id')) == str(task_id):
+                                                t['status'] = new_status
+                                                t['updated_at'] = datetime.now().isoformat()
+                                                if new_status == "completed" and not t.get('completed_at'):
+                                                    t['completed_at'] = datetime.now().isoformat()
+                                                updated_task = t
+                                                break
+                                        task_agent.data_manager.save_data("tasks", all_tasks)
                                     
                                     # Send notifications
                                     notification_agent = agents.get("notification_agent")
@@ -2686,79 +2762,129 @@ def tasks_page():
                 employees = st.session_state.data_manager.load_data("employees") or []
                 employee_lookup = {e.get("id"): e.get("name", "Unknown") for e in employees}
                 
-                # Handle edit forms first - only for managers/owners
-                for edit_idx, task in enumerate(tasks):
+                # Load projects for name lookup
+                projects = st.session_state.data_manager.load_data("projects") or []
+                project_lookup = {p.get("id"): p.get("name", "Unknown") for p in projects}
+                
+                # Find which task is being edited (only one at a time)
+                editing_task_id = None
+                editing_task = None
+                for task in tasks:
                     task_id = task.get('id')
                     if st.session_state.get(f"editing_task_{task_id}", False):
-                        with st.expander(f"✏️ Editing: {task.get('title', 'Untitled')}", expanded=True):
-                            with st.form(f"edit_task_form_{edit_idx}_{task_id}"):
-                                edit_title = st.text_input("Task Title", value=task.get('title', ''), key=f"edit_task_title_{edit_idx}_{task_id}")
-                                edit_description = st.text_area("Description", value=task.get('description', ''), key=f"edit_task_desc_{edit_idx}_{task_id}")
-                                edit_priority = st.selectbox("Priority", ["low", "medium", "high"],
-                                                            index=["low", "medium", "high"].index(task.get('priority', 'medium')),
-                                                            key=f"edit_task_priority_{edit_idx}_{task_id}")
-                                edit_status = st.selectbox("Status", ["pending", "in_progress", "completed"],
-                                                          index=["pending", "in_progress", "completed"].index(task.get('status', 'pending')),
-                                                          key=f"edit_task_status_{edit_idx}_{task_id}")
-                                
-                                # Managers/owners can edit all fields
-                                edit_due_date = st.date_input("Due Date",
-                                                             value=datetime.fromisoformat(task.get('due_date')) if task.get('due_date') else None,
-                                                             key=f"edit_task_due_{edit_idx}_{task_id}")
-                                current_assigned = task.get('assigned_to', '')
-                                # Show names instead of IDs in dropdown
-                                assigned_options = {e.get('name'): e.get("id") for e in employees}
-                                selected_assigned_name = st.selectbox("Assign To", ["-- Choose employee --"] + list(assigned_options.keys()),
-                                                            index=0 if not current_assigned else (list(assigned_options.values()).index(current_assigned) + 1 if current_assigned in assigned_options.values() else 0),
-                                                            key=f"edit_task_assigned_{edit_idx}_{task_id}")
-                                edit_assigned = assigned_options.get(selected_assigned_name) if selected_assigned_name and selected_assigned_name != "-- Choose employee --" else ""
-                                
-                                col_save, col_cancel = st.columns(2)
-                                with col_save:
-                                    if st.form_submit_button("💾 Save Changes", key=f"save_task_btn_{edit_idx}_{task_id}"):
-                                        # Role-based update restrictions
-                                        if user_role in ["owner", "manager"]:
-                                            # Managers/owners can update all fields
-                                            task['title'] = edit_title
-                                            task['description'] = edit_description
-                                            task['priority'] = edit_priority
-                                            task['status'] = edit_status
-                                            task['due_date'] = edit_due_date.isoformat() if edit_due_date else None
-                                            task['assigned_to'] = edit_assigned if edit_assigned else None
-                                        else:
-                                            # Employees can only update status
-                                            if task.get("assigned_to") == user_email:
+                        editing_task_id = task_id
+                        editing_task = task
+                        break  # Only allow one task to be edited at a time
+                
+                # Handle edit form - only show one at a time
+                if editing_task and editing_task_id:
+                    with st.expander(f"✏️ Editing: {editing_task.get('title', 'Untitled')}", expanded=True):
+                        with st.form(f"edit_task_form_{editing_task_id}"):
+                            edit_title = st.text_input("Task Title", value=editing_task.get('title', ''), key=f"edit_task_title_{editing_task_id}")
+                            edit_description = st.text_area("Description", value=editing_task.get('description', ''), key=f"edit_task_desc_{editing_task_id}")
+                            edit_priority = st.selectbox("Priority", ["low", "medium", "high"],
+                                                        index=["low", "medium", "high"].index(editing_task.get('priority', 'medium')),
+                                                        key=f"edit_task_priority_{editing_task_id}")
+                            edit_status = st.selectbox("Status", ["pending", "in_progress", "completed"],
+                                                      index=["pending", "in_progress", "completed"].index(editing_task.get('status', 'pending')),
+                                                      key=f"edit_task_status_{editing_task_id}")
+                            
+                            # Managers/owners can edit all fields
+                            edit_due_date = st.date_input("Due Date",
+                                                         value=datetime.fromisoformat(editing_task.get('due_date')) if editing_task.get('due_date') else None,
+                                                         key=f"edit_task_due_{editing_task_id}")
+                            current_assigned = editing_task.get('assigned_to', '')
+                            # Show names instead of IDs in dropdown
+                            assigned_options = {e.get('name'): e.get("id") for e in employees}
+                            selected_assigned_name = st.selectbox("Assign To", ["-- Choose employee --"] + list(assigned_options.keys()),
+                                                        index=0 if not current_assigned else (list(assigned_options.values()).index(current_assigned) + 1 if current_assigned in assigned_options.values() else 0),
+                                                        key=f"edit_task_assigned_{editing_task_id}")
+                            edit_assigned = assigned_options.get(selected_assigned_name) if selected_assigned_name and selected_assigned_name != "-- Choose employee --" else ""
+                            
+                            col_save, col_cancel = st.columns(2)
+                            with col_save:
+                                if st.form_submit_button("💾 Save Changes", key=f"save_task_btn_{editing_task_id}"):
+                                    # Find the task in the list and update it
+                                    for task in tasks:
+                                        if str(task.get('id')) == str(editing_task_id):
+                                            # Role-based update restrictions
+                                            if user_role in ["owner", "manager"]:
+                                                # Managers/owners can update all fields
+                                                task['title'] = edit_title
+                                                task['description'] = edit_description
+                                                task['priority'] = edit_priority
                                                 task['status'] = edit_status
+                                                task['due_date'] = edit_due_date.isoformat() if edit_due_date else None
+                                                task['assigned_to'] = edit_assigned if edit_assigned else None
                                             else:
-                                                st.error("❌ You can only update tasks assigned to you.")
-                                                st.rerun()
-                                                return
-                                        
-                                        task['updated_at'] = datetime.now().isoformat()
-                                        task_agent.data_manager.save_data("tasks", task_agent.data_manager.load_data("tasks") or [])
-                                        st.session_state[f"editing_task_{task_id}"] = False
-                                        st.success("Task updated!")
-                                        st.rerun()
-                                with col_cancel:
-                                    if st.form_submit_button("❌ Cancel", key=f"cancel_task_btn_{edit_idx}_{task_id}"):
-                                        st.session_state[f"editing_task_{task_id}"] = False
-                                        st.rerun()
+                                                # Employees can only update status
+                                                if task.get("assigned_to") == user_email:
+                                                    task['status'] = edit_status
+                                                else:
+                                                    st.error("❌ You can only update tasks assigned to you.")
+                                                    st.rerun()
+                                                    return
+                                            
+                                    # Use API method if available
+                                    update_data = {}
+                                    if user_role in ["owner", "manager"]:
+                                        update_data = {
+                                            "title": edit_title,
+                                            "description": edit_description,
+                                            "status": edit_status,
+                                            "priority": edit_priority,
+                                            "due_date": edit_due_date.isoformat() if edit_due_date else None,
+                                            "assigned_to": edit_assigned if edit_assigned else None
+                                        }
+                                    else:
+                                        # Employees can only update status
+                                        update_data = {
+                                            "status": edit_status
+                                        }
+                                    
+                                    # If marking as completed, add completed_at timestamp
+                                    if edit_status == "completed":
+                                        update_data["completed_at"] = datetime.now().isoformat()
+                                    
+                                    if hasattr(task_agent.data_manager, 'update_task'):
+                                        task_agent.data_manager.update_task(editing_task_id, update_data)
+                                    else:
+                                        # Fallback to old method
+                                        for task in tasks:
+                                            if str(task.get("id")) == str(editing_task_id):
+                                                task.update(update_data)
+                                                task['updated_at'] = datetime.now().isoformat()
+                                                break
+                                        # Use API method if available - tasks are already updated via task_agent methods
+                                        if not hasattr(task_agent.data_manager, 'update_task'):
+                                            task_agent.data_manager.save_data("tasks", tasks)
+                                    st.session_state[f"editing_task_{editing_task_id}"] = False
+                                    st.success("Task updated!")
+                                    st.rerun()
+                            with col_cancel:
+                                if st.form_submit_button("❌ Cancel", key=f"cancel_task_btn_{editing_task_id}"):
+                                    st.session_state[f"editing_task_{editing_task_id}"] = False
+                                    st.rerun()
+                    
+                    st.markdown("---")
             
                 # Table header
-                header_cols = st.columns([0.5, 2, 1, 1, 1, 2, 1.5])
+                header_cols = st.columns([0.5, 2, 1.5, 1, 1, 1.5, 1.5, 1.5])
                 with header_cols[0]:
                     st.markdown("**#**")
                 with header_cols[1]:
                     st.markdown("**Title**")
                 with header_cols[2]:
-                    st.markdown("**Status**")
+                    st.markdown("**Project**")
                 with header_cols[3]:
-                    st.markdown("**Priority**")
+                    st.markdown("**Status**")
                 with header_cols[4]:
-                    st.markdown("**Due Date**")
+                    st.markdown("**Priority**")
                 with header_cols[5]:
-                    st.markdown("**Assigned To**")
+                    st.markdown("**Due Date**")
                 with header_cols[6]:
+                    st.markdown("**Assigned To**")
+                with header_cols[7]:
                     st.markdown("**Actions**")
                 
                 st.markdown("---")
@@ -2774,25 +2900,37 @@ def tasks_page():
                     # Show employee name instead of ID
                     assigned_to = employee_lookup.get(assigned_to_id, assigned_to_id if assigned_to_id else 'Unassigned')
                     
-                    row_cols = st.columns([0.5, 2, 1, 1, 1, 2, 1.5])
+                    # Get project name
+                    project_id = task.get('project_id')
+                    project_name = project_lookup.get(str(project_id), 'No Project') if project_id else 'No Project'
+                    
+                    row_cols = st.columns([0.5, 2, 1.5, 1, 1, 1.5, 1.5, 1.5])
                     with row_cols[0]:
                         st.write(f"**{idx + 1}**")
                     with row_cols[1]:
                         st.write(f"**{title}**")
                     with row_cols[2]:
-                        st.write(status)
+                        st.write(project_name)
                     with row_cols[3]:
-                        st.write(priority)
+                        st.write(status)
                     with row_cols[4]:
-                        st.write(due_date)
+                        st.write(priority)
                     with row_cols[5]:
-                        st.write(assigned_to)
+                        st.write(due_date)
                     with row_cols[6]:
+                        st.write(assigned_to)
+                    with row_cols[7]:
                         if user_role in ["owner", "manager"]:
                             # Managers and owners can edit/delete
                             btn_col1, btn_col2 = st.columns(2)
                             with btn_col1:
                                 if st.button("✏️ Edit", key=f"view_tasks_edit_{idx}_{task_id}", use_container_width=True):
+                                    # Clear any other editing states first
+                                    for t in tasks:
+                                        other_task_id = t.get('id')
+                                        if other_task_id != task_id:
+                                            st.session_state[f"editing_task_{other_task_id}"] = False
+                                    # Set this task as editing
                                     st.session_state[f"editing_task_{task_id}"] = True
                                     st.rerun()
                             with btn_col2:
@@ -2903,8 +3041,11 @@ def employees_page():
                     
                     with col3:
                         if st.button("🗑️ Del", key=f"delete_employee_{employee.get('id')}", use_container_width=True, type="secondary"):
-                            employees = [e for e in employees if e.get("id") != employee.get("id")]
-                            data_manager.save_data("employees", employees)
+                            if hasattr(data_manager, 'delete_employee'):
+                                data_manager.delete_employee(employee.get('id'))
+                            else:
+                                employees = [e for e in employees if e.get("id") != employee.get("id")]
+                                data_manager.save_data("employees", employees)
                             st.success("Employee deleted!")
                             st.rerun()
         
@@ -2918,11 +3059,19 @@ def employees_page():
                             col_save, col_cancel = st.columns(2)
                             with col_save:
                                 if st.form_submit_button("💾 Save Changes"):
-                                    employee['name'] = edit_name
-                                    employee['email'] = edit_email
-                                    employee['position'] = edit_position
-                                    employee['updated_at'] = datetime.now().isoformat()
-                                    data_manager.save_data("employees", employees)
+                                    # Use API method if available
+                                    if hasattr(data_manager, 'update_employee'):
+                                        data_manager.update_employee(employee.get('id'), {
+                                            "name": edit_name,
+                                            "email": edit_email,
+                                            "position": edit_position
+                                        })
+                                    else:
+                                        employee['name'] = edit_name
+                                        employee['email'] = edit_email
+                                        employee['position'] = edit_position
+                                        employee['updated_at'] = datetime.now().isoformat()
+                                        data_manager.save_data("employees", employees)
                                     st.session_state[f"editing_employee_{employee.get('id')}"] = False
                                     st.success("Employee updated!")
                                     st.rerun()
@@ -2948,16 +3097,25 @@ def employees_page():
                     
                     if st.form_submit_button("Create Employee"):
                         if name and email:
-                            new_employee = {
-                                "id": str(len(employees) + 1),
-                                "name": name,
-                                "email": email,
-                                "position": position,
-                                "created_at": datetime.now().isoformat(),
-                                "updated_at": datetime.now().isoformat()
-                            }
-                            employees.append(new_employee)
-                            data_manager.save_data("employees", employees)
+                            # Use API method if available
+                            if hasattr(data_manager, 'create_employee'):
+                                new_employee = data_manager.create_employee({
+                                    "name": name,
+                                    "email": email,
+                                    "position": position,
+                                    "status": "active"
+                                })
+                            else:
+                                new_employee = {
+                                    "id": str(len(employees) + 1),
+                                    "name": name,
+                                    "email": email,
+                                    "position": position,
+                                    "created_at": datetime.now().isoformat(),
+                                    "updated_at": datetime.now().isoformat()
+                                }
+                                employees.append(new_employee)
+                                data_manager.save_data("employees", employees)
                             st.session_state.show_employees_view = True
                             st.rerun()
 
@@ -2977,11 +3135,15 @@ def performance_page():
     employees = st.session_state.data_manager.load_data("employees") or []
     
     # Role-based employee selection
+    employee_id = None
+    selected_employee = None
+    
     if user_role == "employee":
         # Employees can only view their own performance
         employee = next((e for e in employees if e.get("email") == user_email), None)
         if employee:
             selected_employee = employee.get('name')
+            employee_id = employee.get('id')
             st.info("👤 Viewing your own performance")
         else:
             st.error("❌ Employee record not found.")
@@ -2989,9 +3151,14 @@ def performance_page():
     else:
         # Managers and owners can select any employee
         selected_employee = st.selectbox("Select Employee", ["-- Choose employee --"] + [e.get('name') for e in employees], key="performance_employee_select")
+        
+        # Get employee ID from selected name
+        if selected_employee and selected_employee != "-- Choose employee --":
+            employee = next((e for e in employees if e.get('name') == selected_employee), None)
+            if employee:
+                employee_id = employee.get('id')
     
-    if selected_employee and selected_employee != "-- Choose employee --" and "(" in selected_employee:
-        employee_id = selected_employee.split("(")[1].split(")")[0]
+    if employee_id:
         
         # Role-based evaluation button
         if user_role == "employee":
@@ -3092,20 +3259,207 @@ def performance_page():
                 # Show existing evaluation if available
                 evaluation = performance_agent.evaluate_employee(employee_id, save=False)
         
-        # Display performance metrics (for both employees and managers)
+        # Display performance metrics with AI-powered insights (for both employees and managers)
         if evaluation:
+            # AI-Powered Performance Overview
+            st.markdown("### 🤖 AI Performance Analysis")
+            
+            # Get AI insights
+            enhanced_ai_agent = agents.get("enhanced_ai_agent")
+            ai_insights = None
+            if enhanced_ai_agent:
+                try:
+                    ai_insights = enhanced_ai_agent.generate_growth_insights(employee_id)
+                except:
+                    pass
+            
+            # Performance Score with AI interpretation
+            perf_score = evaluation.get('performance_score', 0)
+            completion_rate = evaluation.get('completion_rate', 0)
+            on_time_rate = evaluation.get('on_time_rate', 0)
+            
+            # AI-generated performance interpretation
+            if perf_score >= 85:
+                perf_status = "🌟 Exceptional"
+                perf_color = "#3DDF85"
+                perf_insight = "AI Analysis: Outstanding performance indicates strong work ethic and capability. This employee demonstrates excellence across multiple metrics."
+            elif perf_score >= 70:
+                perf_status = "✅ Strong"
+                perf_color = "#00E0FF"
+                perf_insight = "AI Analysis: Solid performance with consistent delivery. Room for growth in specific areas to reach exceptional levels."
+            elif perf_score >= 55:
+                perf_status = "📊 Average"
+                perf_color = "#FFA500"
+                perf_insight = "AI Analysis: Meeting baseline expectations. Focused improvement in task completion and time management could significantly boost performance."
+            else:
+                perf_status = "⚠️ Needs Attention"
+                perf_color = "#FF6B6B"
+                perf_insight = "AI Analysis: Performance below expectations. Immediate intervention recommended with structured support and clear improvement goals."
+            
+            # Enhanced metrics with AI context
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Performance Score", f"{evaluation.get('performance_score', 0):.1f}")
+                st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, {perf_color}15, {perf_color}05); 
+                                border: 2px solid {perf_color}; border-radius: 16px; padding: 20px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 8px;">Performance Score</div>
+                        <div style="font-size: 2.5rem; font-weight: 700; color: {perf_color}; margin-bottom: 5px;">
+                            {perf_score:.1f}
+                        </div>
+                        <div style="font-size: 0.85rem; color: {perf_color}; font-weight: 600;">{perf_status}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            
             with col2:
-                st.metric("Completion Rate", f"{evaluation.get('completion_rate', 0):.1f}%")
+                completion_status = "Excellent" if completion_rate >= 90 else "Good" if completion_rate >= 75 else "Fair" if completion_rate >= 60 else "Needs Improvement"
+                completion_color = "#3DDF85" if completion_rate >= 90 else "#00E0FF" if completion_rate >= 75 else "#FFA500" if completion_rate >= 60 else "#FF6B6B"
+                st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, {completion_color}15, {completion_color}05); 
+                                border: 2px solid {completion_color}; border-radius: 16px; padding: 20px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 8px;">Completion Rate</div>
+                        <div style="font-size: 2.5rem; font-weight: 700; color: {completion_color}; margin-bottom: 5px;">
+                            {completion_rate:.1f}%
+                        </div>
+                        <div style="font-size: 0.85rem; color: {completion_color}; font-weight: 600;">{completion_status}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            
             with col3:
-                st.metric("On-Time Rate", f"{evaluation.get('on_time_rate', 0):.1f}%")
+                ontime_status = "Excellent" if on_time_rate >= 90 else "Good" if on_time_rate >= 75 else "Fair" if on_time_rate >= 60 else "Needs Improvement"
+                ontime_color = "#3DDF85" if on_time_rate >= 90 else "#00E0FF" if on_time_rate >= 75 else "#FFA500" if on_time_rate >= 60 else "#FF6B6B"
+                st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, {ontime_color}15, {ontime_color}05); 
+                                border: 2px solid {ontime_color}; border-radius: 16px; padding: 20px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 8px;">On-Time Rate</div>
+                        <div style="font-size: 2.5rem; font-weight: 700; color: {ontime_color}; margin-bottom: 5px;">
+                            {on_time_rate:.1f}%
+                        </div>
+                        <div style="font-size: 0.85rem; color: {ontime_color}; font-weight: 600;">{ontime_status}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            
             with col4:
-                st.metric("Rank", f"#{evaluation.get('rank', 'N/A')}")
+                rank = evaluation.get('rank', 'N/A')
+                rank_color = "#3DDF85" if isinstance(rank, (int, float)) and rank <= 3 else "#00E0FF" if isinstance(rank, (int, float)) and rank <= 5 else "#FFA500"
+                st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, {rank_color}15, {rank_color}05); 
+                                border: 2px solid {rank_color}; border-radius: 16px; padding: 20px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 8px;">Team Rank</div>
+                        <div style="font-size: 2.5rem; font-weight: 700; color: {rank_color}; margin-bottom: 5px;">
+                            #{rank}
+                        </div>
+                        <div style="font-size: 0.85rem; color: {rank_color}; font-weight: 600;">Position</div>
+                    </div>
+                """, unsafe_allow_html=True)
             
             st.markdown("---")
-            st.subheader("Performance Details")
+            
+            # AI-Generated Insights Section
+            st.markdown("### 🧠 AI-Generated Insights & Recommendations")
+            
+            insight_col1, insight_col2 = st.columns([2, 1])
+            
+            with insight_col1:
+                # AI Performance Summary
+                st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, rgba(0, 224, 255, 0.1), rgba(0, 224, 255, 0.05)); 
+                                border: 1px solid rgba(0, 224, 255, 0.3); border-radius: 16px; padding: 20px; margin-bottom: 20px;">
+                        <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                            <span style="font-size: 1.5rem; margin-right: 10px;">🤖</span>
+                            <h4 style="color: #00E0FF; margin: 0;">AI Performance Analysis</h4>
+                        </div>
+                        <p style="color: #FFFFFF; line-height: 1.6; margin: 0;">
+                            {perf_insight}
+                        </p>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                # Detailed AI Insights
+                if ai_insights and not ai_insights.get("error"):
+                    insights_list = ai_insights.get("insights", [])
+                    recommendations = ai_insights.get("recommendations", [])
+                    
+                    if insights_list:
+                        st.markdown("#### 📊 Key Insights")
+                        for insight in insights_list[:5]:
+                            severity = insight.get("severity", "info")
+                            severity_color = "#3DDF85" if severity == "positive" else "#FF6B6B" if severity == "high" else "#FFA500" if severity == "medium" else "#00E0FF"
+                            severity_icon = "✅" if severity == "positive" else "⚠️" if severity in ["high", "medium"] else "ℹ️"
+                            
+                            st.markdown(f"""
+                                <div style="background-color: rgba(255, 255, 255, 0.05); border-left: 4px solid {severity_color}; 
+                                            border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+                                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                                        <span style="font-size: 1.2rem; margin-right: 8px;">{severity_icon}</span>
+                                        <strong style="color: {severity_color};">{insight.get('type', 'Insight').title()}</strong>
+                                    </div>
+                                    <p style="color: #94A3B8; margin: 0; padding-left: 32px;">{insight.get('message', '')}</p>
+                                </div>
+                            """, unsafe_allow_html=True)
+                    
+                    if recommendations:
+                        st.markdown("#### 💡 AI Recommendations")
+                        for i, rec in enumerate(recommendations[:5], 1):
+                            st.markdown(f"""
+                                <div style="background-color: rgba(0, 224, 255, 0.1); border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+                                    <div style="display: flex; align-items: start;">
+                                        <span style="color: #00E0FF; font-weight: 600; margin-right: 10px;">{i}.</span>
+                                        <span style="color: #FFFFFF;">{rec}</span>
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
+            
+            with insight_col2:
+                # Performance Breakdown Chart
+                breakdown_data = {
+                    "Completion": completion_rate,
+                    "On-Time": on_time_rate,
+                    "Quality": min(100, (completion_rate + on_time_rate) / 2)
+                }
+                
+                fig_breakdown = go.Figure(data=[
+                    go.Bar(
+                        x=list(breakdown_data.keys()),
+                        y=list(breakdown_data.values()),
+                        marker=dict(
+                            color=['#00E0FF', '#14F1FF', '#3DDF85'],
+                            line=dict(color='#FFFFFF', width=2)
+                        ),
+                        text=[f"{v:.1f}%" for v in breakdown_data.values()],
+                        textposition='outside',
+                        textfont=dict(color='#FFFFFF', size=12, family='Inter')
+                    )
+                ])
+                
+                fig_breakdown.update_layout(
+                    title="Performance Breakdown",
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    font_color='#FFFFFF',
+                    height=300,
+                    showlegend=False,
+                    xaxis=dict(gridcolor='rgba(255, 255, 255, 0.1)'),
+                    yaxis=dict(gridcolor='rgba(255, 255, 255, 0.1)', range=[0, 100])
+                )
+                st.plotly_chart(fig_breakdown, use_container_width=True)
+                
+                # Performance Trend Indicator
+                trend = evaluation.get('trend', 'stable')
+                trend_icon = "📈" if trend == "improving" else "📉" if trend == "declining" else "➡️"
+                trend_color = "#3DDF85" if trend == "improving" else "#FF6B6B" if trend == "declining" else "#FFA500"
+                
+                st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, {trend_color}15, {trend_color}05); 
+                                border: 1px solid {trend_color}; border-radius: 12px; padding: 15px; text-align: center; margin-top: 10px;">
+                        <div style="font-size: 2rem; margin-bottom: 5px;">{trend_icon}</div>
+                        <div style="color: {trend_color}; font-weight: 600; font-size: 0.9rem;">Trend: {trend.title()}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            
+            st.markdown("---")
+            
+            # Detailed Performance Metrics
+            st.subheader("📋 Detailed Performance Metrics")
             display_as_table(evaluation)
             
             # Performance history chart
@@ -3159,6 +3513,147 @@ def performance_page():
                 st.info("📊 Only one performance evaluation available. More data will be shown as evaluations are added.")
             else:
                 st.info("📊 No performance history available yet. Performance will be tracked as you complete tasks.")
+            
+            # AI Performance Prediction
+            st.markdown("---")
+            st.markdown("### 🔮 AI Performance Prediction")
+            
+            pred_col1, pred_col2 = st.columns([1, 2])
+            
+            with pred_col1:
+                months_to_predict = st.slider("Predict Next (Months)", 1, 6, 3, key="perf_prediction_months")
+                if st.button("🔮 Generate AI Prediction", key="generate_perf_prediction"):
+                    if enhanced_ai_agent:
+                        with st.spinner("🤖 AI is analyzing patterns and generating prediction..."):
+                            prediction = enhanced_ai_agent.predict_performance_trend(employee_id, months_to_predict)
+                            
+                            if prediction and prediction.get("prediction") != "insufficient_data":
+                                current_score = prediction.get("current_score", perf_score)
+                                predicted_score = prediction.get("predicted_score", perf_score)
+                                trend_direction = prediction.get("trend", "stable")
+                                
+                                # Prediction visualization
+                                pred_fig = go.Figure()
+                                
+                                # Current score
+                                pred_fig.add_trace(go.Scatter(
+                                    x=[0],
+                                    y=[current_score],
+                                    mode='markers+text',
+                                    marker=dict(size=20, color='#00E0FF', symbol='circle'),
+                                    text=[f"Current: {current_score:.1f}"],
+                                    textposition="top center",
+                                    name="Current Performance",
+                                    showlegend=False
+                                ))
+                                
+                                # Predicted score
+                                pred_fig.add_trace(go.Scatter(
+                                    x=[months_to_predict],
+                                    y=[predicted_score],
+                                    mode='markers+text',
+                                    marker=dict(size=20, color='#3DDF85' if predicted_score > current_score else '#FF6B6B', symbol='diamond'),
+                                    text=[f"Predicted: {predicted_score:.1f}"],
+                                    textposition="top center",
+                                    name="Predicted Performance",
+                                    showlegend=False
+                                ))
+                                
+                                # Trend line
+                                pred_fig.add_trace(go.Scatter(
+                                    x=[0, months_to_predict],
+                                    y=[current_score, predicted_score],
+                                    mode='lines',
+                                    line=dict(color='#00E0FF', width=3, dash='dash'),
+                                    name="Trend",
+                                    showlegend=False
+                                ))
+                                
+                                pred_fig.update_layout(
+                                    title="AI Performance Prediction",
+                                    xaxis_title="Months",
+                                    yaxis_title="Performance Score",
+                                    plot_bgcolor='rgba(0,0,0,0)',
+                                    paper_bgcolor='rgba(0,0,0,0)',
+                                    font_color='#FFFFFF',
+                                    height=300,
+                                    xaxis=dict(gridcolor='rgba(255, 255, 255, 0.1)', range=[-0.5, months_to_predict + 0.5]),
+                                    yaxis=dict(gridcolor='rgba(255, 255, 255, 0.1)', range=[0, 100])
+                                )
+                                
+                                st.plotly_chart(pred_fig, use_container_width=True)
+                                
+                                # Prediction insights
+                                score_change = predicted_score - current_score
+                                if score_change > 5:
+                                    pred_insight = f"AI predicts a **{score_change:.1f} point improvement** over the next {months_to_predict} months. This indicates strong growth potential based on current trends."
+                                    pred_color = "#3DDF85"
+                                elif score_change < -5:
+                                    pred_insight = f"AI predicts a **{abs(score_change):.1f} point decline** over the next {months_to_predict} months. Immediate intervention and support recommended."
+                                    pred_color = "#FF6B6B"
+                                else:
+                                    pred_insight = f"AI predicts **stable performance** (±{abs(score_change):.1f} points) over the next {months_to_predict} months. Consistent delivery expected."
+                                    pred_color = "#FFA500"
+                                
+                                st.markdown(f"""
+                                    <div style="background: linear-gradient(135deg, {pred_color}15, {pred_color}05); 
+                                                border: 1px solid {pred_color}; border-radius: 12px; padding: 15px; margin-top: 15px;">
+                                        <div style="color: {pred_color}; font-weight: 600; margin-bottom: 8px;">🤖 AI Prediction Insight</div>
+                                        <p style="color: #FFFFFF; margin: 0; line-height: 1.6;">{pred_insight}</p>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.warning("⚠️ Insufficient historical data for AI prediction. Need at least 2 performance evaluations.")
+                    else:
+                        st.info("ℹ️ AI prediction feature requires enhanced AI agent.")
+            
+            with pred_col2:
+                # AI-Generated Action Plan
+                st.markdown("#### 🎯 AI-Generated Action Plan")
+                
+                action_plan_items = []
+                
+                # Generate action items based on performance
+                if completion_rate < 80:
+                    action_plan_items.append({
+                        "priority": "High",
+                        "action": "Focus on task completion - aim for 90%+ completion rate",
+                        "timeline": "Next 2 weeks"
+                    })
+                
+                if on_time_rate < 75:
+                    action_plan_items.append({
+                        "priority": "High",
+                        "action": "Improve time management - prioritize deadline adherence",
+                        "timeline": "Next month"
+                    })
+                
+                if perf_score < 70:
+                    action_plan_items.append({
+                        "priority": "Medium",
+                        "action": "Engage in skill development programs",
+                        "timeline": "Next quarter"
+                    })
+                
+                if not action_plan_items:
+                    action_plan_items.append({
+                        "priority": "Maintain",
+                        "action": "Continue current performance trajectory",
+                        "timeline": "Ongoing"
+                    })
+                
+                for item in action_plan_items:
+                    priority_color = "#FF6B6B" if item["priority"] == "High" else "#FFA500" if item["priority"] == "Medium" else "#3DDF85"
+                    st.markdown(f"""
+                        <div style="background-color: rgba(255, 255, 255, 0.05); border-left: 4px solid {priority_color}; 
+                                    border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span style="color: {priority_color}; font-weight: 600; font-size: 0.85rem;">{item['priority']} Priority</span>
+                                <span style="color: #94A3B8; font-size: 0.8rem;">{item['timeline']}</span>
+                            </div>
+                            <p style="color: #FFFFFF; margin: 0;">{item['action']}</p>
+                        </div>
+                    """, unsafe_allow_html=True)
 
 # Employee Dashboard page
 def employee_dashboard_page():
@@ -3539,24 +4034,33 @@ def analytics_page():
                                                 ["-- Choose employee --"] + [e.get('name') for e in employees],
                                                 key="capacity_forecast_employee")
                 
-                if selected_employee and selected_employee != "-- Choose employee --" and "(" in selected_employee and st.button("📊 Generate Capacity Forecast"):
-                    employee_id = selected_employee.split("(")[1].split(")")[0]
-                    forecast = agents["predictive_analytics_agent"].forecast_capacity(employee_id, weeks)
-                    
-                    st.success("✅ Capacity forecast generated!")
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Current Workload", forecast.get("current_workload", 0))
-                    with col2:
-                        st.metric("Tasks/Week", forecast.get("tasks_per_week", 0))
-                    with col3:
-                        st.metric("Forecasted Capacity", f"{forecast.get('forecasted_capacity', 0):.1f}")
-                    with col4:
-                        st.metric("Available Capacity", f"{forecast.get('available_capacity', 0):.1f}")
-                    
-                    st.metric("Utilization Rate", f"{forecast.get('utilization_rate', 0):.1f}%")
-                    st.info(f"💡 **Recommendation:** {forecast.get('recommendation', 'N/A')}")
+                # Get employee ID from selected name
+                employee_id = None
+                if selected_employee and selected_employee != "-- Choose employee --":
+                    employee = next((e for e in employees if e.get('name') == selected_employee), None)
+                    if employee:
+                        employee_id = employee.get('id')
+                
+                if employee_id:
+                    if st.button("📊 Generate Capacity Forecast", key="generate_capacity_forecast_btn"):
+                        forecast = agents["predictive_analytics_agent"].forecast_capacity(employee_id, weeks)
+                        
+                        st.success("✅ Capacity forecast generated!")
+                        
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Current Workload", forecast.get("current_workload", 0))
+                        with col2:
+                            st.metric("Tasks/Week", forecast.get("tasks_per_week", 0))
+                        with col3:
+                            st.metric("Forecasted Capacity", f"{forecast.get('forecasted_capacity', 0):.1f}")
+                        with col4:
+                            st.metric("Available Capacity", f"{forecast.get('available_capacity', 0):.1f}")
+                        
+                        st.metric("Utilization Rate", f"{forecast.get('utilization_rate', 0):.1f}%")
+                        st.info(f"💡 **Recommendation:** {forecast.get('recommendation', 'N/A')}")
+                elif selected_employee and selected_employee != "-- Choose employee --":
+                    st.info("👤 Select an employee and click 'Generate Capacity Forecast' to see predictions.")
             else:
                 if st.button("📊 Generate Team Capacity Forecast"):
                     forecast = agents["predictive_analytics_agent"].forecast_capacity(None, weeks)
@@ -4395,72 +4899,77 @@ def feedback_page():
                 st.info("No communications yet")
     else:
         # Employee view
-        tab1, tab2 = st.tabs(["My Feedback", "Ask Questions"])
+        # Get employee record by email to get employee ID
+        employees = st.session_state.data_manager.load_data("employees") or []
+        employee = next((e for e in employees if e.get("email") == user_email), None)
         
-        with tab1:
-            my_feedbacks = feedback_agent.get_feedbacks_for_employee(user_email)
-            if my_feedbacks:
-                for feedback in my_feedbacks:
-                    with st.container():
-                        st.markdown(f"### {feedback.get('title', 'Untitled Feedback')}")
-                        st.write(f"**From:** {feedback.get('given_by')} | **Category:** {feedback.get('category')} | **Status:** {feedback.get('status')}")
-                        st.write(f"**Content:** {feedback.get('content', 'N/A')}")
-                        
-                        # Communication thread
-                        communications = feedback.get('communications', [])
-                        if communications:
-                            st.markdown("#### 💬 Conversation:")
-                            for comm in communications:
-                                sender_role = comm.get('sender_role', 'employee')
-                                bg_color = "#2a4a6a" if sender_role == "manager" else "#4a6a2a"
-                                st.markdown(f"""
-                                <div style="background-color: {bg_color}; padding: 10px; border-radius: 5px; margin: 5px 0;">
-                                    <strong>{sender_role.title()}</strong> ({comm.get('sender_id')})<br>
-                                    {comm.get('message')}<br>
-                                    <small>{comm.get('timestamp', '')}</small>
-                                </div>
-                                """, unsafe_allow_html=True)
-                        
-                        # Employee can ask question
-                        with st.expander("Ask a Question to Manager"):
-                            with st.form(f"ask_question_{feedback.get('id')}"):
-                                question = st.text_area("Your Question", key=f"question_{feedback.get('id')}")
-                                if st.form_submit_button("Send Question"):
-                                    if question:
-                                        result = feedback_agent.add_communication(
-                                            feedback.get('id'),
-                                            user_email,
-                                            question,
-                                            "employee"
-                                        )
-                                        if result.get("success"):
-                                            st.success("✅ Question sent! Manager will be notified.")
-                                st.rerun()
-                        
-                        st.markdown("---")
-            else:
-                st.info("No feedback received yet")
+        if not employee:
+            st.warning("⚠️ No employee record found. Please contact your administrator.")
+            return
         
-        with tab2:
-            st.subheader("Ask Questions About Your Feedback")
-            my_feedbacks = feedback_agent.get_feedbacks_for_employee(user_email)
-            if my_feedbacks:
-                selected_feedback = st.selectbox(
-                    "Select Feedback",
-                    ["-- Choose feedback --"] + [f"{f.get('title')} (ID: {f.get('id')})" for f in my_feedbacks]
-                )
-                
-                if selected_feedback and selected_feedback != "-- Choose feedback --":
-                    feedback_id = selected_feedback.split("ID: ")[1].split(")")[0]
-                    feedback = feedback_agent.get_feedback(feedback_id)
+        employee_id = str(employee.get("id"))
+        
+        # Get all feedbacks for the employee
+        my_feedbacks = feedback_agent.get_feedbacks_for_employee(employee_id)
+        
+        if my_feedbacks:
+            st.write(f"**Total Feedback:** {len(my_feedbacks)}")
+            st.markdown("---")
+            
+            for idx, feedback in enumerate(my_feedbacks):
+                with st.container():
+                    feedback_id = feedback.get('id', str(idx))
+                    # Use index to ensure unique form keys even if feedback IDs are duplicated
+                    unique_key = f"{feedback_id}_{idx}"
                     
-                    if feedback:
-                        st.write(f"**Feedback:** {feedback.get('title')}")
-                        st.write(f"**Content:** {feedback.get('content')}")
-                        st.markdown("---")
-                        
-                        with st.form("ask_question_form"):
-                            question = st.text_area("Ask your question to the manager *")
+                    st.markdown(f"### {feedback.get('title', 'Untitled Feedback')}")
+                    
+                    # Get sender information (handle both given_by and sender_id fields)
+                    sender = feedback.get('given_by') or feedback.get('sender_id', 'Unknown')
+                    category = feedback.get('category', 'N/A')
+                    status = feedback.get('status', 'N/A')
+                    
+                    # Format date if available
+                    created_at = feedback.get('created_at', '')
+                    date_display = ""
+                    if created_at:
+                        try:
+                            dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                            date_display = f" | **Date:** {dt.strftime('%Y-%m-%d')}"
+                        except:
+                            date_display = f" | **Date:** {created_at[:10] if len(created_at) >= 10 else ''}"
+                    
+                    st.write(f"**From:** {sender} | **Category:** {category} | **Status:** {status}{date_display}")
+                    st.write(f"**Content:** {feedback.get('content', 'N/A')}")
+                    
+                    # Communication thread
+                    communications = feedback.get('communications', [])
+                    if communications:
+                        st.markdown("#### 💬 Conversation:")
+                        for comm in communications:
+                            sender_role = comm.get('sender_role', 'employee')
+                            bg_color = "#2a4a6a" if sender_role in ["manager", "owner"] else "#4a6a2a"
+                            timestamp = comm.get('timestamp', '')
+                            # Format timestamp
+                            try:
+                                if timestamp:
+                                    dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                                    timestamp = dt.strftime('%Y-%m-%d %H:%M')
+                            except:
+                                pass
+                            
+                            st.markdown(f"""
+                            <div style="background-color: {bg_color}; padding: 10px; border-radius: 5px; margin: 5px 0;">
+                                <strong>{sender_role.title()}</strong> ({comm.get('sender_id')})<br>
+                                {comm.get('message')}<br>
+                                <small>{timestamp}</small>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    
+                    # Employee can ask question directly in each feedback
+                    with st.expander("💬 Ask a Question to Manager"):
+                        with st.form(f"ask_question_form_{unique_key}"):
+                            question = st.text_area("Your Question", key=f"question_input_{unique_key}")
                             if st.form_submit_button("Send Question"):
                                 if question:
                                     result = feedback_agent.add_communication(
@@ -4470,12 +4979,16 @@ def feedback_page():
                                         "employee"
                                     )
                                     if result.get("success"):
-                                        st.success("✅ Question sent! Manager will be notified and can respond.")
+                                        st.success("✅ Question sent! Manager will be notified.")
                                         st.rerun()
                                     else:
-                                        st.error(result.get("error"))
-            else:
-                st.info("You don't have any feedback yet to ask questions about.")
+                                        st.error(result.get("error", "Failed to send question"))
+                                else:
+                                    st.warning("Please enter a question")
+                    
+                    st.markdown("---")
+        else:
+            st.info("No feedback received yet")
 
 # Notifications & Alerts page (merged)
 def notifications_page():
@@ -4508,6 +5021,9 @@ def notifications_page():
             # Sort by created_at (most recent first)
             all_notifications.sort(key=lambda x: x.get('created_at', ''), reverse=True)
             
+            # Limit to last 10 notifications total
+            all_notifications = all_notifications[:10]
+            
             unread_notifications = [n for n in all_notifications if not n.get("read", False)]
             
             st.metric("Unread Notifications", len(unread_notifications))
@@ -4532,7 +5048,7 @@ def notifications_page():
             if read_notifications:
                 st.markdown("---")
                 st.subheader("✓ Read Notifications")
-                for notification in read_notifications[:20]:  # Show last 20 read notifications
+                for notification in read_notifications:
                     emp_id = notification.get("recipient") or notification.get("employee_id")
                     emp_name = next((e.get("name") for e in employees if str(e.get("id")) == str(emp_id)), "Unknown")
                     
@@ -4548,6 +5064,10 @@ def notifications_page():
             employee_id = employee.get("id")
             # Get notifications by employee_id (notifications use employee_id as recipient)
             all_notifications = notification_agent.get_notifications(recipient=employee_id, unread_only=False)
+            
+            # Limit to last 10 notifications total
+            all_notifications = all_notifications[:10]
+            
             unread_notifications = [n for n in all_notifications if not n.get("read", False)]
             
             st.metric("Unread Notifications", len(unread_notifications))
@@ -4568,7 +5088,7 @@ def notifications_page():
             if read_notifications:
                 st.markdown("---")
                 st.subheader("✓ Read Notifications")
-                for notification in read_notifications[:10]:  # Show last 10 read notifications
+                for notification in read_notifications:
                     with st.expander(f"> ✓ {notification.get('title')} - {notification.get('notification_type', notification.get('type', 'info'))}"):
                         st.write(notification.get("message"))
                         st.caption(f"Read: {notification.get('read_at', 'N/A')}")
@@ -5217,44 +5737,35 @@ def employee_development_page():
                 
                 # Status color and emoji
                 if status.lower() == "present":
-                    status_color = "#3DDF85"
                     status_emoji = "✅"
-                    status_bg = "rgba(61, 223, 133, 0.1)"
+                    status_badge = "🟢"
                 else:
-                    status_color = "#00E0FF"
                     status_emoji = "❌"
-                    status_bg = "rgba(0, 224, 255, 0.1)"
+                    status_badge = "🔴"
                 
-                # Create attendance card
-                st.markdown(f"""
-                    <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); 
-                                border-radius: 16px; padding: 20px; margin-bottom: 15px; 
-                                box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                            <div>
-                                <div style="font-size: 1.1rem; font-weight: 600; color: #FFFFFF; margin-bottom: 5px;">
-                                    {date_str}
-                                </div>
-                                <div style="display: inline-block; background-color: {status_bg}; 
-                                            border: 1px solid {status_color}; border-radius: 8px; 
-                                            padding: 4px 12px; font-size: 0.9rem; color: {status_color};">
-                                    {status_emoji} {status}
-                                </div>
-                            </div>
-                            {f'<div style="font-size: 1rem; color: #00E0FF; font-weight: 600;">{work_hours}</div>' if work_hours != "N/A" else ''}
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px;">
-                            <div style="background-color: rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 12px;">
-                                <div style="font-size: 0.85rem; color: #94A3B8; margin-bottom: 5px;">Check-In</div>
-                                <div style="font-size: 1rem; color: #FFFFFF; font-weight: 500;">🕐 {check_in_time_str}</div>
-                            </div>
-                            <div style="background-color: rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 12px;">
-                                <div style="font-size: 0.85rem; color: #94A3B8; margin-bottom: 5px;">Check-Out</div>
-                                <div style="font-size: 1rem; color: #FFFFFF; font-weight: 500;">🕐 {check_out_time_str}</div>
-                            </div>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
+                # Create attendance card using Streamlit native components
+                with st.container():
+                    # Header row with date and status
+                    header_col1, header_col2 = st.columns([3, 1])
+                    with header_col1:
+                        st.markdown(f"### {date_str}")
+                        st.markdown(f"{status_emoji} **{status.title()}**")
+                    with header_col2:
+                        if work_hours != "N/A":
+                            st.metric("Work Hours", work_hours)
+                    
+                    # Check-in and Check-out times in columns
+                    time_col1, time_col2 = st.columns(2)
+                    with time_col1:
+                        with st.container():
+                            st.caption("Check-In")
+                            st.write(f"🕐 **{check_in_time_str}**")
+                    with time_col2:
+                        with st.container():
+                            st.caption("Check-Out")
+                            st.write(f"🕐 **{check_out_time_str}**")
+                    
+                    st.divider()
         else:
             st.info("No attendance records found.")
     

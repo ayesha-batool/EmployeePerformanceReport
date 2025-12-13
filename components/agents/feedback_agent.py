@@ -19,28 +19,49 @@ class FeedbackAgent:
         if not feedback_data.get("employee_id") or not feedback_data.get("given_by"):
             return {"success": False, "error": "Employee ID and given_by are required"}
         
-        feedbacks = self.data_manager.load_data("feedback") or []
-        
-        feedback = {
-            "id": str(len(feedbacks) + 1),
+        # Prepare feedback data for API
+        api_feedback_data = {
             "employee_id": feedback_data["employee_id"],
-            "given_by": feedback_data["given_by"],
-            "type": feedback_data.get("type", "general"),
-            "category": feedback_data.get("category", "performance"),
-            "title": feedback_data.get("title", ""),
-            "content": feedback_data.get("content", ""),
-            "strengths": feedback_data.get("strengths", []),
-            "areas_for_improvement": feedback_data.get("areas_for_improvement", []),
-            "action_items": feedback_data.get("action_items", []),
-            "status": "pending_response",
-            "employee_response": None,
-            "communications": [],  # Communication thread
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat()
+            "reviewer_id": feedback_data["given_by"],
+            "project_id": feedback_data.get("project_id"),
+            "feedback_type": feedback_data.get("type", "general"),
+            "rating": feedback_data.get("rating", 3.0),
+            "feedback_text": feedback_data.get("content", feedback_data.get("title", "")),
+            "is_anonymous": feedback_data.get("is_anonymous", False)
         }
         
-        feedbacks.append(feedback)
-        self.data_manager.save_data("feedback", feedbacks)
+        # Use HybridDataManager's create_feedback method (uses API if available)
+        if hasattr(self.data_manager, 'create_feedback'):
+            feedback = self.data_manager.create_feedback(api_feedback_data)
+            # Add compatibility fields
+            if "given_by" not in feedback:
+                feedback["given_by"] = feedback.get("reviewer_id", feedback_data["given_by"])
+            if "title" not in feedback:
+                feedback["title"] = feedback_data.get("title", "")
+            if "category" not in feedback:
+                feedback["category"] = feedback_data.get("category", "performance")
+        else:
+            # Fallback to old method
+            feedbacks = self.data_manager.load_data("feedback") or []
+            feedback = {
+                "id": str(len(feedbacks) + 1),
+                "employee_id": feedback_data["employee_id"],
+                "given_by": feedback_data["given_by"],
+                "type": feedback_data.get("type", "general"),
+                "category": feedback_data.get("category", "performance"),
+                "title": feedback_data.get("title", ""),
+                "content": feedback_data.get("content", ""),
+                "strengths": feedback_data.get("strengths", []),
+                "areas_for_improvement": feedback_data.get("areas_for_improvement", []),
+                "action_items": feedback_data.get("action_items", []),
+                "status": "pending_response",
+                "employee_response": None,
+                "communications": [],
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat()
+            }
+            feedbacks.append(feedback)
+            self.data_manager.save_data("feedback", feedbacks)
         
         # Notify employee
         if self.notification_agent:
@@ -86,7 +107,9 @@ class FeedbackAgent:
     def get_feedbacks_for_employee(self, employee_id: str, status: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get feedbacks for an employee"""
         feedbacks = self.data_manager.load_data("feedback") or []
-        emp_feedbacks = [f for f in feedbacks if f.get("employee_id") == employee_id]
+        # Convert employee_id to string for comparison (handle both string and int IDs)
+        employee_id_str = str(employee_id)
+        emp_feedbacks = [f for f in feedbacks if str(f.get("employee_id", "")) == employee_id_str]
         
         if status:
             emp_feedbacks = [f for f in emp_feedbacks if f.get("status") == status]

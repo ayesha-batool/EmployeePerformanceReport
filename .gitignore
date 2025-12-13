@@ -15,7 +15,15 @@ ENV/
 # Data files (optional - you may want to track these)
 # Uncomment if you don't want to track data files
 # data/*.json
-# exports/
+exports/*.pdf
+exports/*.json
+exports/*.csv
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+performance.db
 
 # IDE
 .vscode/
@@ -34,4 +42,17 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+
+# Test files
+test_*.py
+*_test.py
+
+# Demo/Example files (optional)
+# generate_*.py
+# example_*.py
+
+# Temporary files
+*.tmp
+*.bak
+*.old
 

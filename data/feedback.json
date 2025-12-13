@@ -91,8 +91,23 @@
     "sender_id": "owner@company.com",
     "sender_role": "owner",
     "created_at": "2025-12-03T22:19:09.724208",
-    "updated_at": "2025-12-03T22:19:09.724214",
-    "communications": []
+    "updated_at": "2025-12-12T22:06:13.734683",
+    "communications": [
+      {
+        "id": "1",
+        "sender_id": "john@company.com",
+        "sender_role": "employee",
+        "message": "why",
+        "timestamp": "2025-12-12T22:05:58.824942"
+      },
+      {
+        "id": "2",
+        "sender_id": "john@company.com",
+        "sender_role": "employee",
+        "message": "for what",
+        "timestamp": "2025-12-12T22:06:13.734651"
+      }
+    ]
   },
   {
     "id": "8",

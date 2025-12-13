@@ -5,6 +5,7 @@ Provides automation tools for performance evaluation, notifications, reports, an
 import asyncio
 import json
 import sys
+import httpx
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from pathlib import Path
@@ -286,6 +287,315 @@ async def list_tools() -> List[Tool]:
                     }
                 }
             }
+        ),
+        # New Atlas Integration Tools
+        Tool(
+            name="get_user_performance",
+            description="Get comprehensive performance data for a user (combines Atlas task data with local performance data)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "User ID from Atlas"
+                    },
+                    "time_period": {
+                        "type": "string",
+                        "description": "Time period for analysis (monthly, quarterly, yearly)",
+                        "enum": ["monthly", "quarterly", "yearly"],
+                        "default": "quarterly"
+                    },
+                    "atlas_token": {
+                        "type": "string",
+                        "description": "Atlas JWT token for API access"
+                    }
+                },
+                "required": ["user_id", "atlas_token"]
+            }
+        ),
+        Tool(
+            name="create_performance_review",
+            description="Create a new performance review for an employee",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "employee_id": {
+                        "type": "string",
+                        "description": "Employee ID from Atlas"
+                    },
+                    "review_period_start": {
+                        "type": "string",
+                        "description": "Review period start date (YYYY-MM-DD)"
+                    },
+                    "review_period_end": {
+                        "type": "string",
+                        "description": "Review period end date (YYYY-MM-DD)"
+                    },
+                    "overall_rating": {
+                        "type": "number",
+                        "description": "Overall performance rating (0-100)"
+                    },
+                    "strengths": {
+                        "type": "string",
+                        "description": "Employee strengths"
+                    },
+                    "areas_for_improvement": {
+                        "type": "string",
+                        "description": "Areas for improvement"
+                    },
+                    "atlas_token": {
+                        "type": "string",
+                        "description": "Atlas JWT token"
+                    }
+                },
+                "required": ["employee_id", "review_period_start", "review_period_end", "atlas_token"]
+            }
+        ),
+        Tool(
+            name="set_performance_goal",
+            description="Set a performance goal for a user",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "User ID from Atlas"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Goal title"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Goal description"
+                    },
+                    "goal_type": {
+                        "type": "string",
+                        "description": "Goal type",
+                        "enum": ["quantitative", "qualitative", "skill_based"]
+                    },
+                    "target_value": {
+                        "type": "number",
+                        "description": "Target value for quantitative goals"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Goal start date (YYYY-MM-DD)"
+                    },
+                    "target_date": {
+                        "type": "string",
+                        "description": "Goal target date (YYYY-MM-DD)"
+                    },
+                    "atlas_token": {
+                        "type": "string",
+                        "description": "Atlas JWT token"
+                    }
+                },
+                "required": ["user_id", "title", "goal_type", "start_date", "target_date", "atlas_token"]
+            }
+        ),
+        Tool(
+            name="get_team_performance",
+            description="Get team performance analytics for an organization",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "organization_id": {
+                        "type": "string",
+                        "description": "Organization ID from Atlas"
+                    },
+                    "atlas_token": {
+                        "type": "string",
+                        "description": "Atlas JWT token"
+                    }
+                },
+                "required": ["organization_id", "atlas_token"]
+            }
+        ),
+        Tool(
+            name="submit_peer_feedback",
+            description="Submit peer feedback for an employee",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "employee_id": {
+                        "type": "string",
+                        "description": "Employee ID receiving feedback"
+                    },
+                    "project_id": {
+                        "type": "string",
+                        "description": "Project ID from Atlas (optional)"
+                    },
+                    "feedback_type": {
+                        "type": "string",
+                        "description": "Type of feedback",
+                        "enum": ["positive", "constructive", "general"]
+                    },
+                    "rating": {
+                        "type": "number",
+                        "description": "Rating (1-5 scale)"
+                    },
+                    "feedback_text": {
+                        "type": "string",
+                        "description": "Feedback text"
+                    },
+                    "is_anonymous": {
+                        "type": "boolean",
+                        "description": "Whether feedback is anonymous",
+                        "default": False
+                    },
+                    "atlas_token": {
+                        "type": "string",
+                        "description": "Atlas JWT token"
+                    }
+                },
+                "required": ["employee_id", "feedback_type", "rating", "feedback_text", "atlas_token"]
+            }
+        ),
+        Tool(
+            name="assess_skills",
+            description="Assess skills for a user",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "User ID from Atlas"
+                    },
+                    "skill_name": {
+                        "type": "string",
+                        "description": "Name of the skill"
+                    },
+                    "skill_category": {
+                        "type": "string",
+                        "description": "Skill category",
+                        "enum": ["technical", "soft", "domain"]
+                    },
+                    "proficiency_level": {
+                        "type": "string",
+                        "description": "Proficiency level",
+                        "enum": ["beginner", "intermediate", "advanced", "expert"]
+                    },
+                    "proficiency_score": {
+                        "type": "number",
+                        "description": "Proficiency score (0-100)"
+                    },
+                    "assessment_method": {
+                        "type": "string",
+                        "description": "Assessment method",
+                        "enum": ["self", "peer", "manager", "test"]
+                    },
+                    "atlas_token": {
+                        "type": "string",
+                        "description": "Atlas JWT token"
+                    }
+                },
+                "required": ["user_id", "skill_name", "proficiency_level", "proficiency_score", "atlas_token"]
+            }
+        ),
+        Tool(
+            name="identify_skill_gaps",
+            description="Identify skill gaps for a user",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "User ID from Atlas"
+                    },
+                    "project_id": {
+                        "type": "string",
+                        "description": "Project ID from Atlas (optional)"
+                    },
+                    "atlas_token": {
+                        "type": "string",
+                        "description": "Atlas JWT token"
+                    }
+                },
+                "required": ["user_id", "atlas_token"]
+            }
+        ),
+        Tool(
+            name="track_goal_progress",
+            description="Update goal progress",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "goal_id": {
+                        "type": "integer",
+                        "description": "Goal ID"
+                    },
+                    "current_value": {
+                        "type": "number",
+                        "description": "Current progress value"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Goal status",
+                        "enum": ["in_progress", "achieved", "missed"]
+                    },
+                    "atlas_token": {
+                        "type": "string",
+                        "description": "Atlas JWT token"
+                    }
+                },
+                "required": ["goal_id", "atlas_token"]
+            }
+        ),
+        Tool(
+            name="generate_performance_report_api",
+            description="Generate performance report via API (quarterly, monthly, etc.)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "User ID from Atlas"
+                    },
+                    "report_type": {
+                        "type": "string",
+                        "description": "Report type",
+                        "enum": ["quarterly", "monthly", "yearly"],
+                        "default": "quarterly"
+                    },
+                    "quarter": {
+                        "type": "integer",
+                        "description": "Quarter number (1-4) for quarterly reports"
+                    },
+                    "year": {
+                        "type": "integer",
+                        "description": "Year for the report"
+                    },
+                    "atlas_token": {
+                        "type": "string",
+                        "description": "Atlas JWT token"
+                    }
+                },
+                "required": ["user_id", "atlas_token"]
+            }
+        ),
+        Tool(
+            name="predict_performance_trend",
+            description="Predict performance trend for a user",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "User ID from Atlas"
+                    },
+                    "prediction_months": {
+                        "type": "integer",
+                        "description": "Number of months to predict ahead",
+                        "default": 3
+                    },
+                    "atlas_token": {
+                        "type": "string",
+                        "description": "Atlas JWT token"
+                    }
+                },
+                "required": ["user_id", "atlas_token"]
+            }
         )
     ]
 
@@ -318,6 +628,27 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             return await handle_get_employee_stats(arguments)
         elif name == "automated_daily_check":
             return await handle_automated_daily_check(arguments)
+        # New Atlas Integration Tools
+        elif name == "get_user_performance":
+            return await handle_get_user_performance(arguments)
+        elif name == "create_performance_review":
+            return await handle_create_performance_review(arguments)
+        elif name == "set_performance_goal":
+            return await handle_set_performance_goal(arguments)
+        elif name == "get_team_performance":
+            return await handle_get_team_performance(arguments)
+        elif name == "submit_peer_feedback":
+            return await handle_submit_peer_feedback(arguments)
+        elif name == "assess_skills":
+            return await handle_assess_skills(arguments)
+        elif name == "identify_skill_gaps":
+            return await handle_identify_skill_gaps(arguments)
+        elif name == "track_goal_progress":
+            return await handle_track_goal_progress(arguments)
+        elif name == "generate_performance_report_api":
+            return await handle_generate_performance_report_api(arguments)
+        elif name == "predict_performance_trend":
+            return await handle_predict_performance_trend(arguments)
         else:
             return [TextContent(
                 type="text",
@@ -639,14 +970,258 @@ async def handle_automated_daily_check(arguments: Dict[str, Any]) -> List[TextCo
     )]
 
 
+# Atlas Integration Tool Handlers
+async def handle_get_user_performance(arguments: Dict[str, Any]) -> List[TextContent]:
+    """Get user performance via API"""
+    user_id = arguments.get("user_id")
+    time_period = arguments.get("time_period", "quarterly")
+    token = arguments.get("atlas_token")
+    
+    if not token:
+        return [TextContent(type="text", text=json.dumps({"error": "Atlas token required"}))]
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"http://localhost:8003/api/v1/analytics/user/{user_id}/performance",
+                params={"time_period": time_period},
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            response.raise_for_status()
+            return [TextContent(type="text", text=json.dumps(response.json(), indent=2))]
+    except Exception as e:
+        return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
+
+async def handle_create_performance_review(arguments: Dict[str, Any]) -> List[TextContent]:
+    """Create performance review via API"""
+    token = arguments.get("atlas_token")
+    if not token:
+        return [TextContent(type="text", text=json.dumps({"error": "Atlas token required"}))]
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:8003/api/v1/reviews",
+                json={
+                    "employee_id": arguments.get("employee_id"),
+                    "review_period_start": arguments.get("review_period_start"),
+                    "review_period_end": arguments.get("review_period_end"),
+                    "overall_rating": arguments.get("overall_rating"),
+                    "strengths": arguments.get("strengths"),
+                    "areas_for_improvement": arguments.get("areas_for_improvement")
+                },
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            response.raise_for_status()
+            return [TextContent(type="text", text=json.dumps(response.json(), indent=2))]
+    except Exception as e:
+        return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
+
+async def handle_set_performance_goal(arguments: Dict[str, Any]) -> List[TextContent]:
+    """Set performance goal via API"""
+    token = arguments.get("atlas_token")
+    if not token:
+        return [TextContent(type="text", text=json.dumps({"error": "Atlas token required"}))]
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:8003/api/v1/goals",
+                json={
+                    "title": arguments.get("title"),
+                    "description": arguments.get("description"),
+                    "goal_type": arguments.get("goal_type"),
+                    "target_value": arguments.get("target_value"),
+                    "start_date": arguments.get("start_date"),
+                    "target_date": arguments.get("target_date")
+                },
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            response.raise_for_status()
+            return [TextContent(type="text", text=json.dumps(response.json(), indent=2))]
+    except Exception as e:
+        return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
+
+async def handle_get_team_performance(arguments: Dict[str, Any]) -> List[TextContent]:
+    """Get team performance via API"""
+    org_id = arguments.get("organization_id")
+    token = arguments.get("atlas_token")
+    
+    if not token:
+        return [TextContent(type="text", text=json.dumps({"error": "Atlas token required"}))]
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"http://localhost:8003/api/v1/analytics/team/{org_id}/performance",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            response.raise_for_status()
+            return [TextContent(type="text", text=json.dumps(response.json(), indent=2))]
+    except Exception as e:
+        return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
+
+async def handle_submit_peer_feedback(arguments: Dict[str, Any]) -> List[TextContent]:
+    """Submit peer feedback via API"""
+    token = arguments.get("atlas_token")
+    if not token:
+        return [TextContent(type="text", text=json.dumps({"error": "Atlas token required"}))]
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:8003/api/v1/feedback",
+                json={
+                    "employee_id": arguments.get("employee_id"),
+                    "project_id": arguments.get("project_id"),
+                    "feedback_type": arguments.get("feedback_type"),
+                    "rating": arguments.get("rating"),
+                    "feedback_text": arguments.get("feedback_text"),
+                    "is_anonymous": arguments.get("is_anonymous", False)
+                },
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            response.raise_for_status()
+            return [TextContent(type="text", text=json.dumps(response.json(), indent=2))]
+    except Exception as e:
+        return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
+
+async def handle_assess_skills(arguments: Dict[str, Any]) -> List[TextContent]:
+    """Assess skills via API"""
+    token = arguments.get("atlas_token")
+    if not token:
+        return [TextContent(type="text", text=json.dumps({"error": "Atlas token required"}))]
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:8003/api/v1/skills/assess",
+                json={
+                    "skill_name": arguments.get("skill_name"),
+                    "skill_category": arguments.get("skill_category"),
+                    "proficiency_level": arguments.get("proficiency_level"),
+                    "proficiency_score": arguments.get("proficiency_score"),
+                    "assessment_method": arguments.get("assessment_method")
+                },
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            response.raise_for_status()
+            return [TextContent(type="text", text=json.dumps(response.json(), indent=2))]
+    except Exception as e:
+        return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
+
+async def handle_identify_skill_gaps(arguments: Dict[str, Any]) -> List[TextContent]:
+    """Identify skill gaps via API"""
+    user_id = arguments.get("user_id")
+    project_id = arguments.get("project_id")
+    token = arguments.get("atlas_token")
+    
+    if not token:
+        return [TextContent(type="text", text=json.dumps({"error": "Atlas token required"}))]
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            url = f"http://localhost:8003/api/v1/skills/gaps/{user_id}"
+            params = {"project_id": project_id} if project_id else {}
+            response = await client.get(
+                url,
+                params=params,
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            response.raise_for_status()
+            return [TextContent(type="text", text=json.dumps(response.json(), indent=2))]
+    except Exception as e:
+        return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
+
+async def handle_track_goal_progress(arguments: Dict[str, Any]) -> List[TextContent]:
+    """Track goal progress via API"""
+    goal_id = arguments.get("goal_id")
+    token = arguments.get("atlas_token")
+    
+    if not token:
+        return [TextContent(type="text", text=json.dumps({"error": "Atlas token required"}))]
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.put(
+                f"http://localhost:8003/api/v1/goals/{goal_id}/progress",
+                json={
+                    "current_value": arguments.get("current_value"),
+                    "status": arguments.get("status")
+                },
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            response.raise_for_status()
+            return [TextContent(type="text", text=json.dumps(response.json(), indent=2))]
+    except Exception as e:
+        return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
+
+async def handle_generate_performance_report_api(arguments: Dict[str, Any]) -> List[TextContent]:
+    """Generate performance report via API"""
+    user_id = arguments.get("user_id")
+    report_type = arguments.get("report_type", "quarterly")
+    token = arguments.get("atlas_token")
+    
+    if not token:
+        return [TextContent(type="text", text=json.dumps({"error": "Atlas token required"}))]
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            if report_type == "quarterly":
+                params = {}
+                if arguments.get("quarter"):
+                    params["quarter"] = arguments.get("quarter")
+                if arguments.get("year"):
+                    params["year"] = arguments.get("year")
+                
+                response = await client.get(
+                    f"http://localhost:8003/api/v1/reports/user/{user_id}/quarterly",
+                    params=params,
+                    headers={"Authorization": f"Bearer {token}"}
+                )
+            else:
+                # For monthly/yearly, use analytics endpoint
+                response = await client.get(
+                    f"http://localhost:8003/api/v1/analytics/user/{user_id}/performance",
+                    params={"time_period": report_type},
+                    headers={"Authorization": f"Bearer {token}"}
+                )
+            
+            response.raise_for_status()
+            return [TextContent(type="text", text=json.dumps(response.json(), indent=2))]
+    except Exception as e:
+        return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
+
+async def handle_predict_performance_trend(arguments: Dict[str, Any]) -> List[TextContent]:
+    """Predict performance trend via API"""
+    user_id = arguments.get("user_id")
+    prediction_months = arguments.get("prediction_months", 3)
+    token = arguments.get("atlas_token")
+    
+    if not token:
+        return [TextContent(type="text", text=json.dumps({"error": "Atlas token required"}))]
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:8003/api/v1/analytics/predict",
+                json={
+                    "user_id": user_id,
+                    "prediction_months": prediction_months
+                },
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            response.raise_for_status()
+            return [TextContent(type="text", text=json.dumps(response.json(), indent=2))]
+    except Exception as e:
+        return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
+
 async def main():
     """Main entry point for the MCP server"""
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            server.create_initialization_options()
-        )
+    # Create stdio transport
+    transport = stdio_server()
+    # Run the server with the transport
+    await server.run(transport, server.create_initialization_options())
 
 
 if __name__ == "__main__":
