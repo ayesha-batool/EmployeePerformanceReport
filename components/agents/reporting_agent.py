@@ -1,9 +1,12 @@
 """
-Reporting Agent - Comprehensive project reports and analytics
+Reporting Agent - AI-powered project reports and analytics
 """
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
+import json
 from components.managers.data_manager import DataManager
+from components.managers.ai_client import AIClient
+from components.managers.event_bus import get_event_bus
 
 
 class ReportingAgent:
@@ -11,6 +14,11 @@ class ReportingAgent:
     
     def __init__(self, data_manager: DataManager):
         self.data_manager = data_manager
+        self.ai_client = AIClient()
+        self.event_bus = get_event_bus()
+        
+        if not self.ai_client.enabled:
+            print("⚠️ WARNING: AI is not enabled. Reporting requires AI. Set USE_AI=true and configure API key.")
     
     def generate_project_report(self, project_id: str) -> Dict[str, Any]:
         """Generate detailed project report"""
@@ -32,11 +40,32 @@ class ReportingAgent:
         
         completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
         
-        # Calculate project health
-        health_score = self._calculate_project_health(project, project_tasks)
+        # Use AI to calculate project health
+        previous_health = project.get("health_score")
+        health_score = self._ai_calculate_project_health(project, project_tasks)
         
-        # Identify risks
-        risks = self._identify_project_risks(project, project_tasks)
+        # Publish project health changed event if changed (event-driven)
+        if previous_health and abs(previous_health - health_score) > 5:
+            self.event_bus.publish_event(
+                EventType.PROJECT_HEALTH_CHANGED,
+                {
+                    "project": project,
+                    "health_score": health_score,
+                    "previous_score": previous_health
+                },
+                source="ReportingAgent"
+            )
+        
+        # Use AI to identify risks
+        risks = self._ai_identify_project_risks(project, project_tasks)
+        
+        # Publish risk events for detected risks (event-driven)
+        for risk in risks:
+            self.event_bus.publish_event(
+                EventType.RISK_DETECTED,
+                {"risk": risk, "project_id": project_id},
+                source="ReportingAgent"
+            )
         
         # Resource allocation
         resource_allocation = self._analyze_resource_allocation(project_tasks, employees)
@@ -114,84 +143,119 @@ class ReportingAgent:
         
         return overview
     
-    def _calculate_project_health(self, project: Dict[str, Any], tasks: List[Dict[str, Any]]) -> float:
-        """Calculate project health score (0-100)"""
-        if not tasks:
-            return 100.0
-        
-        # Factors affecting health
-        completion_rate = len([t for t in tasks if t.get("status") == "completed"]) / len(tasks) * 100
-        
-        # Check for overdue tasks
-        overdue_count = self._count_overdue_tasks(tasks)
-        overdue_penalty = (overdue_count / len(tasks)) * 30  # Max 30 point penalty
-        
-        # Check deadline proximity
-        deadline_penalty = 0
-        if project.get("deadline"):
-            try:
-                deadline = datetime.fromisoformat(project["deadline"])
-                days_remaining = (deadline - datetime.now()).days
-                if days_remaining < 0:
-                    deadline_penalty = 20
-                elif days_remaining < 7:
-                    deadline_penalty = 10
-            except:
-                pass
-        
-        health_score = completion_rate - overdue_penalty - deadline_penalty
-        return max(0, min(100, health_score))
-    
-    def _identify_project_risks(self, project: Dict[str, Any], tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Identify project risks"""
-        risks = []
-        
-        # Overdue tasks risk
-        overdue_tasks = self._get_overdue_tasks(tasks)
-        if overdue_tasks:
-            risks.append({
-                "type": "overdue_tasks",
-                "severity": "high" if len(overdue_tasks) > 3 else "medium",
-                "description": f"{len(overdue_tasks)} tasks are overdue",
-                "count": len(overdue_tasks)
-            })
-        
-        # Deadline risk
-        if project.get("deadline"):
-            try:
-                deadline = datetime.fromisoformat(project["deadline"])
-                days_remaining = (deadline - datetime.now()).days
-                incomplete_tasks = len([t for t in tasks if t.get("status") != "completed"])
-                
-                if days_remaining < 0:
-                    risks.append({
-                        "type": "deadline_passed",
-                        "severity": "high",
-                        "description": "Project deadline has passed",
-                        "days_overdue": abs(days_remaining)
-                    })
-                elif days_remaining < 7 and incomplete_tasks > 0:
-                    risks.append({
-                        "type": "approaching_deadline",
-                        "severity": "medium",
-                        "description": f"Deadline approaching with {incomplete_tasks} incomplete tasks",
-                        "days_remaining": days_remaining
-                    })
-            except:
-                pass
-        
-        # Low completion rate risk
-        if tasks:
+    def _ai_calculate_project_health(self, project: Dict[str, Any], tasks: List[Dict[str, Any]]) -> float:
+        """Use AI to calculate project health score - no rule-based formulas"""
+        if not self.ai_client.enabled:
+            # Simple fallback
+            if not tasks:
+                return 100.0
             completion_rate = len([t for t in tasks if t.get("status") == "completed"]) / len(tasks) * 100
-            if completion_rate < 50:
-                risks.append({
-                    "type": "low_completion",
-                    "severity": "medium",
-                    "description": f"Low completion rate: {completion_rate:.1f}%",
-                    "completion_rate": completion_rate
-                })
+            return completion_rate
         
-        return risks
+        try:
+            project_data = {
+                "project_name": project.get("name", ""),
+                "status": project.get("status", ""),
+                "deadline": project.get("deadline", ""),
+                "total_tasks": len(tasks),
+                "completed_tasks": len([t for t in tasks if t.get("status") == "completed"]),
+                "overdue_tasks": self._count_overdue_tasks(tasks),
+                "task_details": tasks[:20]  # Sample of tasks
+            }
+            
+            system_prompt = """You are a project health analyst. Analyze project data and calculate a health score (0-100).
+Consider: completion rate, deadline proximity, task status, team performance, risks.
+
+Return ONLY a number between 0 and 100 representing the project health score."""
+            
+            user_prompt = f"""Calculate health score for this project:
+{json.dumps(project_data, indent=2, default=str)}
+
+Current date: {datetime.now().isoformat()}
+
+Return only the score number (0-100)."""
+            
+            response = self.ai_client.chat(
+                [{"role": "user", "content": user_prompt}],
+                system_prompt=system_prompt,
+                temperature=0.3,
+                max_tokens=50
+            )
+            
+            if response:
+                import re
+                numbers = re.findall(r'\d+\.?\d*', response)
+                if numbers:
+                    score = float(numbers[0])
+                    return min(max(score, 0), 100)
+            
+            # Fallback
+            if not tasks:
+                return 100.0
+            completion_rate = len([t for t in tasks if t.get("status") == "completed"]) / len(tasks) * 100
+            return completion_rate
+        except Exception as e:
+            print(f"AI project health calculation error: {e}")
+            if not tasks:
+                return 100.0
+            completion_rate = len([t for t in tasks if t.get("status") == "completed"]) / len(tasks) * 100
+            return completion_rate
+    
+    
+    def _ai_identify_project_risks(self, project: Dict[str, Any], tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Use AI to identify project risks - no rule-based thresholds"""
+        if not self.ai_client.enabled:
+            return []
+        
+        try:
+            project_data = {
+                "project_name": project.get("name", ""),
+                "status": project.get("status", ""),
+                "deadline": project.get("deadline", ""),
+                "total_tasks": len(tasks),
+                "completed_tasks": len([t for t in tasks if t.get("status") == "completed"]),
+                "overdue_tasks": self._count_overdue_tasks(tasks),
+                "tasks": tasks[:20]  # Sample
+            }
+            
+            system_prompt = """You are a project risk analyst. Identify risks in project data.
+Return JSON array with risks, each having: type, severity (low/medium/high/critical), description, and relevant details.
+Return empty array [] if no risks found."""
+            
+            user_prompt = f"""Identify risks for this project:
+{json.dumps(project_data, indent=2, default=str)}
+
+Current date: {datetime.now().isoformat()}
+
+Return JSON array of risks."""
+            
+            response = self.ai_client.chat(
+                [{"role": "user", "content": user_prompt}],
+                system_prompt=system_prompt,
+                temperature=0.3,
+                max_tokens=500
+            )
+            
+            if response:
+                try:
+                    # Try to parse JSON from response
+                    if "```json" in response:
+                        response = response.split("```json")[1].split("```")[0].strip()
+                    elif "```" in response:
+                        response = response.split("```")[1].split("```")[0].strip()
+                    
+                    risks = json.loads(response)
+                    if isinstance(risks, list):
+                        return risks
+                except:
+                    # If JSON parsing fails, try to extract risk info
+                    pass
+            
+            return []
+        except Exception as e:
+            print(f"AI risk identification error: {e}")
+            return []
+    
     
     def _analyze_resource_allocation(self, tasks: List[Dict[str, Any]], employees: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Analyze resource allocation"""

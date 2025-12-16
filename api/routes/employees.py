@@ -16,18 +16,14 @@ router = APIRouter(prefix="/api/v1/employees", tags=["employees"])
 class EmployeeCreate(BaseModel):
     name: str
     email: str
-    department: str = None
     position: str = None
-    status: str = "active"
     hire_date: datetime = None
     skills: Dict[str, Any] = None
 
 class EmployeeUpdate(BaseModel):
     name: str = None
     email: str = None
-    department: str = None
     position: str = None
-    status: str = None
     hire_date: datetime = None
     skills: Dict[str, Any] = None
 
@@ -35,9 +31,7 @@ class EmployeeResponse(BaseModel):
     id: int
     name: str
     email: str
-    department: str = None
     position: str = None
-    status: str
     hire_date: datetime = None
     skills: Dict[str, Any] = None
     created_at: datetime
@@ -52,9 +46,7 @@ def employee_to_dict(employee: Employee) -> Dict[str, Any]:
         "id": str(employee.id),
         "name": employee.name,
         "email": employee.email,
-        "department": employee.department,
         "position": employee.position,
-        "status": employee.status,
         "hire_date": employee.hire_date.isoformat() if employee.hire_date else None,
         "created_at": employee.created_at.isoformat() if employee.created_at else None,
         "updated_at": employee.updated_at.isoformat() if employee.updated_at else None,
@@ -109,9 +101,7 @@ async def create_employee(
     db_employee = Employee(
         name=employee.name,
         email=employee.email,
-        department=employee.department,
         position=employee.position,
-        status=employee.status,
         hire_date=employee.hire_date,
         skills=json.dumps(employee.skills) if employee.skills else None
     )
@@ -147,12 +137,8 @@ async def update_employee(
         if existing:
             raise HTTPException(status_code=400, detail="Email already in use")
         db_employee.email = employee.email
-    if employee.department is not None:
-        db_employee.department = employee.department
     if employee.position is not None:
         db_employee.position = employee.position
-    if employee.status is not None:
-        db_employee.status = employee.status
     if employee.hire_date is not None:
         db_employee.hire_date = employee.hire_date
     if employee.skills is not None:

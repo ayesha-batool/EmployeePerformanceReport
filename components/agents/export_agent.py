@@ -292,9 +292,7 @@ class ExportAgent:
                 "id": employee.get("id"),
                 "name": employee.get("name", ""),
                 "email": employee.get("email", ""),
-                "department": employee.get("department", "N/A"),
                 "position": employee.get("position", "N/A"),
-                "status": employee.get("status", "active"),
                 "hire_date": employee.get("hire_date", "N/A")
             },
             "performance_metrics": {
@@ -366,7 +364,6 @@ class ExportAgent:
             pdf_data = [
                 {"Metric": "Employee Name", "Value": employee.get("name", "")},
                 {"Metric": "Employee ID", "Value": employee_id},
-                {"Metric": "Department", "Value": employee.get("department", "N/A")},
                 {"Metric": "Position", "Value": employee.get("position", "N/A")},
                 {"Metric": "Email", "Value": employee.get("email", "N/A")},
             ]

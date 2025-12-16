@@ -1,9 +1,13 @@
 """
-Goal Agent - Goal setting, tracking, and progress management
+Goal Agent - AI-powered goal setting, tracking, and progress management
 """
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
+import json
+import numpy as np
 from components.managers.data_manager import DataManager
+from components.managers.ai_client import AIClient
+from components.managers.event_bus import get_event_bus, EventType
 from components.agents.notification_agent import NotificationAgent
 
 
@@ -13,6 +17,11 @@ class GoalAgent:
     def __init__(self, data_manager: DataManager, notification_agent: Optional[NotificationAgent] = None):
         self.data_manager = data_manager
         self.notification_agent = notification_agent
+        self.ai_client = AIClient()
+        self.event_bus = get_event_bus()
+        
+        if not self.ai_client.enabled:
+            print("⚠️ WARNING: AI is not enabled. Goal management requires AI. Set USE_AI=true and configure API key.")
     
     def create_goal(self, goal_data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new goal"""
@@ -30,7 +39,7 @@ class GoalAgent:
             "target_date": goal_data.get("deadline") or goal_data.get("target_date", (datetime.now() + timedelta(days=30)).isoformat())
         }
         
-        # Use HybridDataManager's create_goal method (uses API if available)
+        # Use DataManager's create_goal method
         if hasattr(self.data_manager, 'create_goal'):
             goal = self.data_manager.create_goal(api_goal_data)
             # Add employee_id for compatibility
@@ -55,14 +64,12 @@ class GoalAgent:
             goals.append(goal)
             self.data_manager.save_data("goals", goals)
         
-        # Notify employee
-        if self.notification_agent:
-            self.notification_agent.send_notification(
-                recipient=goal_data["employee_id"],
-                title="New Goal Assigned",
-                message=f"A new goal has been assigned to you: {goal_data['title']}",
-                notification_type="goal_assignment"
-            )
+        # Publish goal created event (event-driven, not rule-based)
+        self.event_bus.publish_event(
+            EventType.GOAL_CREATED,
+            {"goal": goal},
+            source="GoalAgent"
+        )
         
         return {"success": True, "goal": goal}
     
@@ -74,7 +81,7 @@ class GoalAgent:
             "status": None  # Will be calculated
         }
         
-        # Use HybridDataManager's update_goal method (uses API if available)
+        # Use DataManager's update_goal method
         if hasattr(self.data_manager, 'update_goal'):
             # First get the goal to calculate status
             goals = self.data_manager.load_data("goals") or []
@@ -112,9 +119,47 @@ class GoalAgent:
                             "timestamp": datetime.now().isoformat()
                         })
                     
-                    # Update status
-                    goal["status"] = self._calculate_goal_status(goal)
+                    # Analyze progress trend (ML-based)
+                    trend_analysis = self.analyze_progress_trend(goal)
+                    goal["progress_trend"] = trend_analysis.get("trend", "stable")
+                    goal["progress_velocity"] = trend_analysis.get("velocity", 0)
+                    
+                    # Auto-adjust goal if needed
+                    if trend_analysis.get("should_adjust", False):
+                        adjustment_result = self.auto_adjust_goal(goal_id, trend_analysis.get("recommended_adjustment", {}))
+                        if adjustment_result.get("success"):
+                            goal = adjustment_result.get("goal", goal)
+                    
+                    # Update status using AI
+                    previous_status = goal.get("status")
+                    goal["status"] = self._ai_calculate_goal_status(goal)
                     goal["progress_percentage"] = self.calculate_goal_progress(goal)
+                    
+                    # Publish goal updated event
+                    self.event_bus.publish_event(
+                        EventType.GOAL_PROGRESS_UPDATED,
+                        {
+                            "goal": goal,
+                            "previous_status": previous_status,
+                            "current_value": current_value,
+                            "trend_analysis": trend_analysis
+                        },
+                        source="GoalAgent"
+                    )
+                    
+                    # Check for status changes and publish specific events
+                    if goal["status"] == "completed" and previous_status != "completed":
+                        self.event_bus.publish_event(
+                            EventType.GOAL_COMPLETED,
+                            {"goal": goal},
+                            source="GoalAgent"
+                        )
+                    elif goal["status"] == "overdue" and previous_status != "overdue":
+                        self.event_bus.publish_event(
+                            EventType.GOAL_OVERDUE,
+                            {"goal": goal},
+                            source="GoalAgent"
+                        )
                     
                     self.data_manager.save_data("goals", goals)
                     return {"success": True, "goal": goal}
@@ -132,28 +177,74 @@ class GoalAgent:
         progress = (current / target) * 100
         return min(100.0, max(0.0, progress))
     
-    def _calculate_goal_status(self, goal: Dict[str, Any]) -> str:
-        """Calculate goal status"""
-        progress = self.calculate_goal_progress(goal)
+    def _ai_calculate_goal_status(self, goal: Dict[str, Any]) -> str:
+        """Use AI to determine goal status - no rule-based logic"""
+        if not self.ai_client.enabled:
+            # Simple fallback
+            progress = self.calculate_goal_progress(goal)
+            if progress >= 100:
+                return "completed"
+            if goal.get("deadline"):
+                try:
+                    deadline = datetime.fromisoformat(goal["deadline"])
+                    if deadline < datetime.now():
+                        return "overdue"
+                except:
+                    pass
+            return "active"
         
-        if progress >= 100:
-            return "completed"
-        
-        # Check if overdue
-        if goal.get("deadline"):
-            try:
-                deadline = datetime.fromisoformat(goal["deadline"])
-                if deadline < datetime.now() and progress < 100:
-                    return "overdue"
-            except:
-                pass
-        
-        return "active"
+        try:
+            progress = self.calculate_goal_progress(goal)
+            goal_data = {
+                "title": goal.get("title", ""),
+                "progress_percentage": progress,
+                "current_value": goal.get("current_value", 0),
+                "target_value": goal.get("target_value", 100),
+                "deadline": goal.get("deadline") or goal.get("target_date", ""),
+                "created_at": goal.get("created_at", "")
+            }
+            
+            system_prompt = """You are a goal management expert. Analyze goal data and determine status.
+Return ONLY one word: "active", "completed", "overdue", "at_risk", or "on_hold"."""
+            
+            user_prompt = f"""Determine status for this goal:
+{json.dumps(goal_data, indent=2)}
+
+Current date: {datetime.now().isoformat()}
+
+Return only: active, completed, overdue, at_risk, or on_hold"""
+            
+            response = self.ai_client.chat(
+                [{"role": "user", "content": user_prompt}],
+                system_prompt=system_prompt,
+                temperature=0.2,
+                max_tokens=10
+            )
+            
+            if response:
+                response_lower = response.lower().strip()
+                valid_statuses = ["active", "completed", "overdue", "at_risk", "on_hold"]
+                for status in valid_statuses:
+                    if status in response_lower:
+                        return status
+            
+            # Fallback
+            if progress >= 100:
+                return "completed"
+            return "active"
+        except Exception as e:
+            print(f"AI goal status calculation error: {e}")
+            # Fallback
+            progress = self.calculate_goal_progress(goal)
+            if progress >= 100:
+                return "completed"
+            return "active"
     
     def get_employee_goals(self, employee_id: str, status: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get goals for an employee"""
         goals = self.data_manager.load_data("goals") or []
-        emp_goals = [g for g in goals if g.get("employee_id") == employee_id]
+        # Check both employee_id and user_id (API uses user_id, old data might use employee_id)
+        emp_goals = [g for g in goals if str(g.get("employee_id", "")) == str(employee_id) or str(g.get("user_id", "")) == str(employee_id)]
         
         if status:
             emp_goals = [g for g in emp_goals if g.get("status") == status]

@@ -1,9 +1,12 @@
 """
-Feedback Agent - Structured feedback management
+Feedback Agent - AI-powered feedback management
 """
 from datetime import datetime
 from typing import Dict, Any, Optional, List
+import json
 from components.managers.data_manager import DataManager
+from components.managers.ai_client import AIClient
+from components.managers.event_bus import get_event_bus, EventType
 from components.agents.notification_agent import NotificationAgent
 
 
@@ -13,6 +16,8 @@ class FeedbackAgent:
     def __init__(self, data_manager: DataManager, notification_agent: Optional[NotificationAgent] = None):
         self.data_manager = data_manager
         self.notification_agent = notification_agent
+        self.ai_client = AIClient()
+        self.event_bus = get_event_bus()
     
     def create_feedback(self, feedback_data: Dict[str, Any]) -> Dict[str, Any]:
         """Create structured feedback"""
@@ -30,7 +35,7 @@ class FeedbackAgent:
             "is_anonymous": feedback_data.get("is_anonymous", False)
         }
         
-        # Use HybridDataManager's create_feedback method (uses API if available)
+        # Use DataManager's create_feedback method
         if hasattr(self.data_manager, 'create_feedback'):
             feedback = self.data_manager.create_feedback(api_feedback_data)
             # Add compatibility fields
@@ -63,14 +68,12 @@ class FeedbackAgent:
             feedbacks.append(feedback)
             self.data_manager.save_data("feedback", feedbacks)
         
-        # Notify employee
-        if self.notification_agent:
-            self.notification_agent.send_notification(
-                recipient=feedback_data["employee_id"],
-                title="New Feedback Received",
-                message=f"You have received new feedback: {feedback.get('title', 'Feedback')}",
-                notification_type="feedback"
-            )
+        # Publish feedback created event (event-driven, not rule-based)
+        self.event_bus.publish_event(
+            EventType.FEEDBACK_CREATED,
+            {"feedback": feedback},
+            source="FeedbackAgent"
+        )
         
         return {"success": True, "feedback": feedback}
     
@@ -91,14 +94,12 @@ class FeedbackAgent:
                 
                 self.data_manager.save_data("feedback", feedbacks)
                 
-                # Notify feedback giver
-                if self.notification_agent:
-                    self.notification_agent.send_notification(
-                        recipient=feedback.get("given_by"),
-                        title="Feedback Response Received",
-                        message=f"Employee has responded to your feedback: {feedback.get('title', 'Feedback')}",
-                        notification_type="feedback_response"
-                    )
+                # Publish feedback responded event (event-driven, not rule-based)
+                self.event_bus.publish_event(
+                    EventType.FEEDBACK_RESPONDED,
+                    {"feedback": feedback, "response": response_data},
+                    source="FeedbackAgent"
+                )
                 
                 return {"success": True, "feedback": feedback}
         

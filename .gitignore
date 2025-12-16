@@ -1,3 +1,8 @@
+# Models directory (contains trained ML models)
+models/
+*.pkl
+*.joblib
+
 # Python
 __pycache__/
 *.py[cod]
@@ -9,50 +14,26 @@ venv/
 ENV/
 .venv
 
-# Streamlit
-.streamlit/
-
-# Data files (optional - you may want to track these)
-# Uncomment if you don't want to track data files
-# data/*.json
-exports/*.pdf
-exports/*.json
-exports/*.csv
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-performance.db
+# Environment variables
+.env
+.env.local
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
 # OS
 .DS_Store
 Thumbs.db
 
+# Exports
+exports/
+*.pdf
+*.xlsx
+*.csv
+
 # Logs
 *.log
-
-# Environment variables
-.env
-.env.local
-
-# Test files
-test_*.py
-*_test.py
-
-# Demo/Example files (optional)
-# generate_*.py
-# example_*.py
-
-# Temporary files
-*.tmp
-*.bak
-*.old
-
+logs/

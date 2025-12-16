@@ -9,9 +9,7 @@ CREATE TABLE IF NOT EXISTS employees (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
-    department VARCHAR(100),
     position VARCHAR(100),
-    status VARCHAR(50) DEFAULT 'active',
     hire_date TIMESTAMP,
     skills JSONB,
     created_at TIMESTAMP DEFAULT NOW(),
@@ -142,6 +140,26 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Achievements Table
+CREATE TABLE IF NOT EXISTS achievements (
+    id VARCHAR(255) PRIMARY KEY,
+    employee_id UUID REFERENCES employees(id) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    category VARCHAR(50) DEFAULT 'general',
+    related_task_id UUID REFERENCES tasks(id),
+    related_project_id UUID REFERENCES projects(id),
+    impact VARCHAR(50) DEFAULT 'medium',
+    start_date TIMESTAMP,
+    end_date TIMESTAMP,
+    verified BOOLEAN DEFAULT FALSE,
+    verified_by VARCHAR(255),
+    verified_at TIMESTAMP,
+    verification_notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Create Indexes for Performance
 CREATE INDEX IF NOT EXISTS idx_employees_email ON employees(email);
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);
@@ -152,6 +170,9 @@ CREATE INDEX IF NOT EXISTS idx_goals_user_id ON performance_goals(user_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_employee_id ON peer_feedback(employee_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+CREATE INDEX IF NOT EXISTS idx_achievements_employee_id ON achievements(employee_id);
+CREATE INDEX IF NOT EXISTS idx_achievements_category ON achievements(category);
+CREATE INDEX IF NOT EXISTS idx_achievements_created_at ON achievements(created_at);
 
 -- Enable Row Level Security (RLS) - Optional, configure as needed
 ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
@@ -164,6 +185,7 @@ ALTER TABLE performance_reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE skill_assessments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE performance_metrics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE achievements ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for public access (adjust based on your security needs)
 -- For development, allow all operations
@@ -177,4 +199,5 @@ CREATE POLICY "Allow all operations" ON performance_reviews FOR ALL USING (true)
 CREATE POLICY "Allow all operations" ON skill_assessments FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all operations" ON performance_metrics FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all operations" ON notifications FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all operations" ON achievements FOR ALL USING (true) WITH CHECK (true);
 

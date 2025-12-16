@@ -102,3 +102,8 @@ async def identify_skill_gaps(
     }
 
 
+
+
+
+
+

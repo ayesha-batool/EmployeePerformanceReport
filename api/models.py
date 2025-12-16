@@ -89,9 +89,7 @@ class Employee(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
-    department = Column(String, nullable=True)
     position = Column(String, nullable=True)
-    status = Column(String, default="active")  # active, inactive
     hire_date = Column(DateTime, nullable=True)
     skills = Column(Text, nullable=True)  # JSON string
     created_at = Column(DateTime, default=datetime.utcnow)

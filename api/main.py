@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.database import init_db
 from api.routes import reviews, goals, feedback, skills, analytics, reports, employees, tasks, projects, performances, notifications
+from api.routes import dashboard, frontend
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -42,6 +43,8 @@ app.include_router(tasks.router)
 app.include_router(projects.router)
 app.include_router(performances.router)
 app.include_router(notifications.router)
+app.include_router(dashboard.router)
+app.include_router(frontend.router)
 
 @app.get("/")
 async def root():

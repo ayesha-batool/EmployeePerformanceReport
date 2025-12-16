@@ -12,30 +12,36 @@ import os
 
 # Import all managers and agents
 from components.managers.data_manager import DataManager
-from components.managers.hybrid_data_manager import HybridDataManager
 from components.managers.auth_manager import AuthManager
-from components.agents.task_agent import TaskAgent
-from components.agents.performance_agent import EnhancedPerformanceAgent
-from components.agents.reporting_agent import ReportingAgent
-from components.agents.notification_agent import NotificationAgent
-from components.agents.risk_agent import RiskDetectionAgent
-from components.agents.assistant_agent import AssistantAgent
-from components.agents.export_agent import ExportAgent
-from components.agents.goal_agent import GoalAgent
-from components.agents.feedback_agent import FeedbackAgent
-from components.agents.filtering_agent import FilteringAgent
-from components.agents.comparison_agent import ComparisonAgent
-from components.agents.enhanced_ai_agent import EnhancedAIAgent
-from components.agents.achievement_agent import AchievementAgent
-from components.agents.predictive_analytics_agent import PredictiveAnalyticsAgent
-from components.agents.correlation_agent import CorrelationAgent
-from components.agents.skill_agent import SkillAgent
-from components.agents.workload_agent import WorkloadAgent
-from components.agents.attendance_agent import AttendanceAgent
-from components.agents.engagement_agent import EngagementAgent
-from components.agents.promotion_agent import PromotionAgent
-from components.agents.badge_agent import BadgeAgent
-from components.agents.review_360_agent import Review360Agent
+from components.managers.event_bus import get_event_bus, set_event_bus, EventBus
+
+# Check if we should use API backend
+USE_API_BACKEND = os.getenv("USE_API_BACKEND", "false").lower() == "true"
+
+# Conditionally import API client (only if needed)
+# Use lazy import to avoid issues if module doesn't exist
+APIClient = None
+if USE_API_BACKEND:
+    try:
+        import importlib
+        api_client_module = importlib.import_module("components.managers.api_client")
+        APIClient = api_client_module.APIClient
+    except (ImportError, ModuleNotFoundError, AttributeError) as e:
+        print(f"Warning: API client not available: {e}")
+        print("To use API backend, install httpx: pip install httpx")
+        USE_API_BACKEND = False
+        APIClient = None
+
+if not USE_API_BACKEND:
+    # Direct agent imports (legacy mode)
+    from components.agents.performance_agent import EnhancedPerformanceAgent
+    from components.agents.reporting_agent import ReportingAgent
+    from components.agents.notification_agent import NotificationAgent
+    from components.agents.export_agent import ExportAgent
+    from components.agents.goal_agent import GoalAgent
+    from components.agents.feedback_agent import FeedbackAgent
+    from components.agents.promotion_agent import PromotionAgent
+    from components.agents.event_handlers import EventHandlers
 
 # Page configuration
 st.set_page_config(
@@ -45,7 +51,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for Neo-Dark Analytics Dashboard Theme
+# Custom CSS for Professional Black & Orange Theme
 st.markdown("""
     <script>
     (function() {
@@ -53,8 +59,8 @@ st.markdown("""
             const inputs = document.querySelectorAll('input, textarea, select');
             inputs.forEach(input => {
                 // Always force the dark background, regardless of current style
-                input.style.setProperty('background-color', 'rgb(25, 18, 24)', 'important');
-                input.style.setProperty('background', 'rgb(25, 18, 24)', 'important');
+                input.style.setProperty('background-color', '#0A0A0A', 'important');
+                input.style.setProperty('background', '#0A0A0A', 'important');
                 input.style.setProperty('color', '#FFFFFF', 'important');
                 
                 // Also check computed style and override if needed
@@ -124,6 +130,101 @@ st.markdown("""
             childList: true,
             subtree: true
         });
+        
+        // Fix dropdown menu backgrounds (override blue backgrounds)
+        function fixDropdownStyles() {
+            // Find all dropdown popovers
+            const popovers = document.querySelectorAll('[data-baseweb="popover"]');
+            popovers.forEach(popover => {
+                popover.style.backgroundColor = '#0A0A0A';
+                popover.style.background = '#0A0A0A';
+                popover.style.color = '#FFFFFF';
+                
+                // Fix all options inside
+                const options = popover.querySelectorAll('[role="option"], li, div[role="option"]');
+                options.forEach(option => {
+                    option.style.backgroundColor = '#0A0A0A';
+                    option.style.background = '#0A0A0A';
+                    option.style.color = '#FFFFFF';
+                });
+            });
+            
+            // Find any divs with blue backgrounds that might be dropdowns
+            const allDivs = document.querySelectorAll('div[style*="position: absolute"]');
+            allDivs.forEach(div => {
+                const style = div.getAttribute('style') || '';
+                if (style.includes('background') && (style.includes('rgb(255') || style.includes('rgba(255') || style.includes('rgb(240') || style.includes('rgba(240'))) {
+                    div.style.backgroundColor = '#0A0A0A';
+                    div.style.background = '#0A0A0A';
+                    div.style.color = '#FFFFFF';
+                }
+            });
+        }
+        
+        // Run immediately and on intervals
+        fixDropdownStyles();
+        setInterval(fixDropdownStyles, 500);
+        
+        // Watch for new dropdowns
+        const dropdownObserver = new MutationObserver(fixDropdownStyles);
+        dropdownObserver.observe(document.body, { childList: true, subtree: true });
+        
+        // Fix calendar/date picker styling
+        function fixCalendarStyles() {
+            // Find all calendar popovers
+            const calendars = document.querySelectorAll('[data-baseweb="popover"], [data-baseweb="calendar"]');
+            calendars.forEach(calendar => {
+                calendar.style.backgroundColor = '#0A0A0A';
+                calendar.style.background = '#0A0A0A';
+                calendar.style.color = '#FFFFFF';
+                
+                // Fix all tables inside calendar
+                const tables = calendar.querySelectorAll('table');
+                tables.forEach(table => {
+                    table.style.backgroundColor = '#0A0A0A';
+                    table.style.background = '#0A0A0A';
+                    table.style.color = '#FFFFFF';
+                    
+                    // Fix all cells
+                    const cells = table.querySelectorAll('td, th');
+                    cells.forEach(cell => {
+                        const style = cell.getAttribute('style') || '';
+                        // Override any light backgrounds
+                        if (style.includes('background') && (style.includes('rgb(255') || style.includes('rgba(255') || style.includes('rgb(240'))) {
+                            if (cell.getAttribute('aria-selected') === 'true') {
+                                cell.style.backgroundColor = '#FF6B35';
+                                cell.style.color = '#000000';
+                            } else {
+                                cell.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                                cell.style.color = '#FFFFFF';
+                            }
+                        }
+                    });
+                });
+            });
+            
+            // Find any divs with tables that might be calendars
+            const allDivs = document.querySelectorAll('div[style*="position: absolute"], div[style*="position: fixed"]');
+            allDivs.forEach(div => {
+                const hasTable = div.querySelector('table');
+                if (hasTable) {
+                    const style = div.getAttribute('style') || '';
+                    if (style.includes('background') && (style.includes('rgb(255') || style.includes('rgba(255') || style.includes('rgb(240'))) {
+                        div.style.backgroundColor = '#000000';
+                        div.style.background = '#000000';
+                        div.style.color = '#FFFFFF';
+                    }
+                }
+            });
+        }
+        
+        // Run immediately and on intervals
+        fixCalendarStyles();
+        setInterval(fixCalendarStyles, 500);
+        
+        // Watch for new calendars
+        const calendarObserver = new MutationObserver(fixCalendarStyles);
+        calendarObserver.observe(document.body, { childList: true, subtree: true });
     })();
     </script>
     <style>
@@ -145,46 +246,46 @@ st.markdown("""
     section[class*="st-bs"],
     [style*="rgb(240, 242, 246)"],
     [style*="background-color: rgb(240, 242, 246)"] {
-        background-color: #0A0F1F !important;
-        background: #0A0F1F !important;
+        background-color: #000000 !important;
+        background: #000000 !important;
     }
     
     /* Override any element with light gray background */
     *[style*="240, 242, 246"],
     *[style*="rgb(240, 242, 246)"] {
-        background-color: #0A0F1F !important;
-        background: #0A0F1F !important;
+        background-color: #000000 !important;
+        background: #000000 !important;
     }
     
     /* ===== MAIN APP BACKGROUND ===== */
     .stApp {
-        background-color: #0A0F1F !important;
+        background-color: #000000 !important;
         background-image: 
-            radial-gradient(circle at 20% 50%, rgba(0, 224, 255, 0.03) 0%, transparent 50%),
-            radial-gradient(circle at 80% 80%, rgba(59, 130, 246, 0.03) 0%, transparent 50%);
+            radial-gradient(circle at 20% 50%, rgba(255, 107, 53, 0.05) 0%, transparent 50%),
+            radial-gradient(circle at 80% 80%, rgba(255, 140, 66, 0.03) 0%, transparent 50%);
         color: #FFFFFF !important;
     }
     
     /* ===== HEADER & NAVBAR ===== */
     [data-testid="stHeader"] {
-        background-color: #0D1324 !important;
+        background-color: #0A0A0A !important;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
         backdrop-filter: blur(14px);
-        box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);
+        box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.1);
     }
     
     [data-testid="stToolbar"] {
-        background-color: #0D1324 !important;
+        background-color: #0A0A0A !important;
     }
     
     [data-testid="stDecoration"] {
-        background-color: #0D1324 !important;
+        background-color: #0A0A0A !important;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
     }
     
     /* ===== SIDEBAR ===== */
     [data-testid="stSidebar"] {
-        background-color: #0D1324 !important;
+        background-color: #0A0A0A !important;
         border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
     }
     
@@ -217,19 +318,19 @@ st.markdown("""
     }
     
     .stSidebar .stButton > button:hover {
-        background-color: rgba(0, 224, 255, 0.1) !important;
-        border-color: #00E0FF !important;
-        color: #00E0FF !important;
-        box-shadow: 0 0 12px rgba(0, 224, 255, 0.3) !important;
+        background-color: rgba(255, 107, 53, 0.15) !important;
+        border-color: #FF6B35 !important;
+        color: #FF6B35 !important;
+        box-shadow: 0 0 12px rgba(255, 107, 53, 0.4) !important;
         transform: translateX(5px) scale(1.02) !important;
     }
     
     /* Active sidebar button */
     .stSidebar .stButton > button:focus,
     .stSidebar .stButton > button:active {
-        background-color: rgba(0, 224, 255, 0.15) !important;
-        border-color: #00E0FF !important;
-        color: #00E0FF !important;
+        background-color: rgba(255, 107, 53, 0.2) !important;
+        border-color: #FF6B35 !important;
+        color: #FF6B35 !important;
     }
     
     /* ===== MAIN CONTENT ===== */
@@ -254,7 +355,7 @@ st.markdown("""
         font-weight: 700 !important;
         margin-bottom: 1.5rem !important;
         padding-bottom: 0.5rem !important;
-        border-bottom: 2px solid rgba(0, 224, 255, 0.2) !important;
+        border-bottom: 2px solid rgba(255, 107, 53, 0.3) !important;
         border-top: none !important;
         border-left: none !important;
         border-right: none !important;
@@ -262,7 +363,7 @@ st.markdown("""
     
     /* Remove any orange/red borders from headers and tabs */
     h1, h2, h3, h4, h5, h6 {
-        border-color: rgba(0, 224, 255, 0.2) !important;
+        border-color: rgba(255, 107, 53, 0.3) !important;
     }
     
     /* Remove any default Streamlit orange/red borders */
@@ -275,7 +376,7 @@ st.markdown("""
     
     /* Ensure only blue line shows on tabs */
     .stTabs [aria-selected="true"] {
-        border-bottom: 2px solid #00E0FF !important;
+        border-bottom: 2px solid #FF6B35 !important;
         border-top: none !important;
         border-left: none !important;
         border-right: none !important;
@@ -294,7 +395,7 @@ st.markdown("""
     }
     
     p, span, div, li {
-        color: #94A3B8 !important;
+        color: #CCCCCC !important;
         font-weight: 400 !important;
     }
     
@@ -319,13 +420,13 @@ st.markdown("""
     .stSelectbox select,
     .stNumberInput input,
     .stDateInput input {
-        background-color: rgb(25, 18, 24) !important;
-        background: rgb(25, 18, 24) !important;
+        background-color: #0A0A0A !important;
+        background: #0A0A0A !important;
         color: #FFFFFF !important;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
         border-radius: 10px !important;
         padding: 10px 14px !important;
-        caret-color: #00E0FF !important;
+        caret-color: #FF6B35 !important;
         font-family: 'Inter', 'Poppins', sans-serif !important;
         transition: all 0.3s ease !important;
     }
@@ -337,16 +438,16 @@ st.markdown("""
     input[style*="rgba(255,255,255,0.04)"],
     textarea[style*="rgba(255,255,255,0.04)"],
     select[style*="rgba(255,255,255,0.04)"] {
-        background-color: rgb(25, 18, 24) !important;
-        background: rgb(25, 18, 24) !important;
+        background-color: #0A0A0A !important;
+        background: #0A0A0A !important;
     }
     
     /* Force dark background on ALL input elements - most aggressive override */
     input,
     textarea,
     select {
-        background-color: rgb(25, 18, 24) !important;
-        background: rgb(25, 18, 24) !important;
+        background-color: #0A0A0A !important;
+        background: #0A0A0A !important;
     }
     
     /* Override any white or light backgrounds with inline styles */
@@ -368,8 +469,8 @@ st.markdown("""
     select[style*="background: white"],
     select[style*="background: rgb(255"],
     select[style*="background: rgba(255"] {
-        background-color: rgb(25, 18, 24) !important;
-        background: rgb(25, 18, 24) !important;
+        background-color: #0A0A0A !important;
+        background: #0A0A0A !important;
     }
     
     /* Override any white backgrounds on inputs */
@@ -390,9 +491,9 @@ st.markdown("""
     input[type="number"]:focus,
     textarea:focus,
     select:focus {
-        border-color: #00E0FF !important;
+        border-color: #FF6B35 !important;
         outline: none !important;
-        box-shadow: 0 0 10px rgba(0, 224, 255, 0.4) !important;
+        box-shadow: 0 0 10px rgba(255, 107, 53, 0.4) !important;
         background-color: rgb(25, 18, 24) !important;
     }
     
@@ -400,8 +501,188 @@ st.markdown("""
     .stTextArea > div > div > textarea::placeholder,
     .stNumberInput > div > div > input::placeholder,
     .stDateInput > div > div > input::placeholder {
-        color: #94A3B8 !important;
+        color: #CCCCCC !important;
         opacity: 0.8 !important;
+    }
+    
+    /* ===== CALENDAR/DATE PICKER STYLING ===== */
+    /* Calendar popover container */
+    [data-baseweb="popover"][role="dialog"],
+    div[data-baseweb="popover"][role="dialog"],
+    /* Calendar widget container */
+    [data-baseweb="calendar"],
+    div[data-baseweb="calendar"],
+    /* Any div that contains a calendar */
+    div[style*="position: absolute"][style*="z-index"]:has(table),
+    div[style*="position: fixed"][style*="z-index"]:has(table) {
+        background-color: #000000 !important;
+        background: #000000 !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 10px !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+        color: #FFFFFF !important;
+    }
+    
+    /* Calendar table */
+    table[role="grid"],
+    [data-baseweb="calendar"] table,
+    div[data-baseweb="popover"] table,
+    /* Streamlit calendar tables */
+    .stDateInput table,
+    [data-baseweb="calendar"] > div > table {
+        background-color: #000000 !important;
+        background: #000000 !important;
+        color: #FFFFFF !important;
+        border-collapse: separate !important;
+        border-spacing: 4px !important;
+    }
+    
+    /* Calendar header (month/year) */
+    [data-baseweb="calendar"] th,
+    [data-baseweb="popover"] th,
+    table[role="grid"] th,
+    .stDateInput th,
+    [data-baseweb="calendar"] > div > table th {
+        background-color: transparent !important;
+        background: transparent !important;
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+        padding: 10px !important;
+        border: none !important;
+    }
+    
+    /* Calendar day names (Su, Mo, Tu, etc.) */
+    [data-baseweb="calendar"] th[role="columnheader"],
+    [data-baseweb="popover"] th[role="columnheader"],
+    table[role="grid"] th[role="columnheader"],
+    .stDateInput th[role="columnheader"] {
+        background-color: rgba(255, 107, 53, 0.1) !important;
+        background: rgba(255, 107, 53, 0.1) !important;
+        color: #FF6B35 !important;
+        font-weight: 500 !important;
+        padding: 8px 4px !important;
+        border-radius: 6px !important;
+    }
+    
+    /* Calendar day cells */
+    [data-baseweb="calendar"] td,
+    [data-baseweb="popover"] td,
+    table[role="grid"] td,
+    .stDateInput td,
+    [data-baseweb="calendar"] > div > table td {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        background: rgba(255, 255, 255, 0.05) !important;
+        color: #FFFFFF !important;
+        padding: 8px !important;
+        border-radius: 6px !important;
+        text-align: center !important;
+        cursor: pointer !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    /* Calendar day cells - hover state */
+    [data-baseweb="calendar"] td:hover,
+    [data-baseweb="popover"] td:hover,
+    table[role="grid"] td:hover,
+    .stDateInput td:hover,
+    [data-baseweb="calendar"] > div > table td:hover {
+        background-color: rgba(255, 107, 53, 0.2) !important;
+        background: rgba(255, 107, 53, 0.2) !important;
+        color: #FF6B35 !important;
+        transform: scale(1.05) !important;
+    }
+    
+    /* Selected date */
+    [data-baseweb="calendar"] td[aria-selected="true"],
+    [data-baseweb="popover"] td[aria-selected="true"],
+    table[role="grid"] td[aria-selected="true"],
+    .stDateInput td[aria-selected="true"],
+    [data-baseweb="calendar"] > div > table td[aria-selected="true"],
+    /* Also target cells with selected class or style */
+    td[class*="selected"],
+    td[style*="background"][style*="rgb(255"] {
+        background-color: #FF6B35 !important;
+        background: #FF6B35 !important;
+        color: #000000 !important;
+        font-weight: 600 !important;
+        box-shadow: 0 0 10px rgba(255, 107, 53, 0.5) !important;
+    }
+    
+    /* Today's date (if different from selected) */
+    [data-baseweb="calendar"] td[aria-label*="today"],
+    [data-baseweb="popover"] td[aria-label*="today"],
+    table[role="grid"] td[aria-label*="today"],
+    .stDateInput td[aria-label*="today"] {
+        border: 2px solid #FF6B35 !important;
+        background-color: rgba(255, 107, 53, 0.1) !important;
+    }
+    
+    /* Disabled/out-of-range dates */
+    [data-baseweb="calendar"] td[aria-disabled="true"],
+    [data-baseweb="popover"] td[aria-disabled="true"],
+    table[role="grid"] td[aria-disabled="true"],
+    .stDateInput td[aria-disabled="true"],
+    td[class*="disabled"],
+    td[style*="opacity"][style*="0.5"] {
+        background-color: rgba(255, 255, 255, 0.02) !important;
+        color: rgba(255, 255, 255, 0.3) !important;
+        cursor: not-allowed !important;
+    }
+    
+    /* Calendar navigation buttons (prev/next month) */
+    [data-baseweb="calendar"] button,
+    [data-baseweb="popover"] button,
+    [data-baseweb="calendar"] > div > button,
+    /* Arrow buttons in calendar */
+    button[aria-label*="previous"],
+    button[aria-label*="next"],
+    button[aria-label*="Previous"],
+    button[aria-label*="Next"] {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        background: rgba(255, 255, 255, 0.1) !important;
+        color: #FFFFFF !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border-radius: 6px !important;
+        padding: 6px 10px !important;
+        cursor: pointer !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    [data-baseweb="calendar"] button:hover,
+    [data-baseweb="popover"] button:hover,
+    button[aria-label*="previous"]:hover,
+    button[aria-label*="next"]:hover {
+        background-color: rgba(255, 107, 53, 0.2) !important;
+        border-color: #FF6B35 !important;
+        color: #FF6B35 !important;
+    }
+    
+    /* Calendar month/year selector */
+    [data-baseweb="calendar"] select,
+    [data-baseweb="popover"] select,
+    [data-baseweb="calendar"] > div > select {
+        background-color: #000000 !important;
+        background: #000000 !important;
+        color: #FFFFFF !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 6px !important;
+        padding: 6px 10px !important;
+    }
+    
+    /* Override any inline styles on calendar elements */
+    [data-baseweb="calendar"] *,
+    [data-baseweb="popover"] *,
+    table[role="grid"] * {
+        color: inherit !important;
+    }
+    
+    /* Force dark background on calendar popover - override inline styles */
+    div[style*="position: absolute"][style*="z-index"]:has(table),
+    div[style*="position: fixed"][style*="z-index"]:has(table),
+    div[style*="background"][style*="rgb(255"]:has(table),
+    div[style*="background"][style*="rgba(255"]:has(table) {
+        background-color: #000000 !important;
+        background: #000000 !important;
     }
     
     /* Hide ALL Material Icons text completely - use manual arrows instead */
@@ -524,7 +805,7 @@ st.markdown("""
     
     /* Ensure select elements are clickable and focusable */
     select:focus {
-        outline: 2px solid #00E0FF !important;
+        outline: 2px solid #FF6B35 !important;
         outline-offset: 2px !important;
     }
     
@@ -541,8 +822,107 @@ st.markdown("""
     
     input, textarea, select {
         color: #FFFFFF !important;
-        caret-color: #00E0FF !important;
+        caret-color: #FF6B35 !important;
         background-color: rgb(25, 18, 24) !important;
+    }
+    
+    /* Style dropdown menu options (the actual dropdown list) - OVERRIDE ALL BLUE BACKGROUNDS */
+    [data-baseweb="select"] [role="listbox"],
+    [data-baseweb="select"] [role="option"],
+    [data-baseweb="select"] ul,
+    [data-baseweb="select"] li,
+    div[data-baseweb="popover"],
+    div[data-baseweb="popover"] [role="listbox"],
+    div[data-baseweb="popover"] [role="option"],
+    div[data-baseweb="popover"] ul,
+    div[data-baseweb="popover"] li,
+    /* Streamlit's dropdown menu */
+    [data-baseweb="select"] > div > div,
+    [data-baseweb="select"] > div > div > div,
+    /* Baseweb popover (dropdown container) */
+    [data-baseweb="popover"],
+    div[style*="position: absolute"][style*="z-index"],
+    /* Override any blue/rgb backgrounds */
+    div[style*="background-color: rgb"][style*="position: absolute"],
+    div[style*="background: rgb"][style*="position: absolute"],
+    div[style*="background-color: rgba"][style*="position: absolute"],
+    div[style*="background: rgba"][style*="position: absolute"] {
+        background-color: #000000 !important;
+        background: #000000 !important;
+        color: #FFFFFF !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
+    
+    /* Dropdown option items */
+    [data-baseweb="select"] [role="option"],
+    [data-baseweb="popover"] [role="option"],
+    li[role="option"],
+    div[role="option"],
+    [data-baseweb="select"] li,
+    [data-baseweb="popover"] li {
+        background-color: #000000 !important;
+        background: #000000 !important;
+        color: #FFFFFF !important;
+        padding: 10px 14px !important;
+    }
+    
+    /* Hover state for dropdown options */
+    [data-baseweb="select"] [role="option"]:hover,
+    [data-baseweb="popover"] [role="option"]:hover,
+    li[role="option"]:hover,
+    div[role="option"]:hover,
+    [data-baseweb="select"] li:hover,
+    [data-baseweb="popover"] li:hover {
+        background-color: rgba(255, 107, 53, 0.1) !important;
+        background: rgba(255, 107, 53, 0.1) !important;
+        color: #FF6B35 !important;
+    }
+    
+    /* Selected option in dropdown */
+    [data-baseweb="select"] [role="option"][aria-selected="true"],
+    [data-baseweb="popover"] [role="option"][aria-selected="true"],
+    li[role="option"][aria-selected="true"],
+    div[role="option"][aria-selected="true"] {
+        background-color: rgba(255, 107, 53, 0.2) !important;
+        background: rgba(255, 107, 53, 0.2) !important;
+        color: #FF6B35 !important;
+    }
+    
+    /* Override any blue backgrounds in dropdowns - most aggressive */
+    [data-baseweb="select"] *,
+    [data-baseweb="popover"] * {
+        background-color: transparent !important;
+        background: transparent !important;
+    }
+    
+    [data-baseweb="select"] [role="listbox"],
+    [data-baseweb="popover"] [role="listbox"],
+    [data-baseweb="select"] ul,
+    [data-baseweb="popover"] ul {
+        background-color: #000000 !important;
+        background: #000000 !important;
+    }
+    
+    /* Force black background on all dropdown containers - override inline styles */
+    div[data-baseweb="popover"],
+    div[style*="position: absolute"][style*="z-index"][style*="background"],
+    [data-baseweb="select"] > div[style*="background"],
+    /* Target any div with blue/light background that's a dropdown */
+    div[style*="rgb(255"][style*="position"],
+    div[style*="rgba(255"][style*="position"],
+    div[style*="rgb(240"][style*="position"],
+    div[style*="rgba(240"][style*="position"] {
+        background-color: #000000 !important;
+        background: #000000 !important;
+    }
+    
+    /* Override any inline style backgrounds on dropdown elements */
+    [data-baseweb="popover"][style*="background"],
+    [data-baseweb="select"][style*="background"],
+    [role="listbox"][style*="background"],
+    [role="option"][style*="background"] {
+        background-color: #000000 !important;
+        background: #000000 !important;
     }
     
     /* Force dark background on all input elements, even if they have inline styles */
@@ -554,8 +934,8 @@ st.markdown("""
     input[type="time"],
     textarea,
     select {
-        background-color: rgb(25, 18, 24) !important;
-        background: rgb(25, 18, 24) !important;
+        background-color: #0A0A0A !important;
+        background: #0A0A0A !important;
     }
     
     /* Override any white or light backgrounds */
@@ -568,15 +948,15 @@ st.markdown("""
     select[style*="white"],
     select[style*="rgb(255"],
     select[style*="rgba(255"] {
-        background-color: rgb(25, 18, 24) !important;
-        background: rgb(25, 18, 24) !important;
+        background-color: #0A0A0A !important;
+        background: #0A0A0A !important;
     }
     
     /* ===== BUTTONS ===== */
     /* Primary Buttons */
     .stButton > button {
-        background: linear-gradient(90deg, #00D1FF, #00FFA6) !important;
-        color: #1e3a8a !important;
+        background: linear-gradient(90deg, #FF6B35, #FF8C42) !important;
+        color: #000000 !important;
         border: none !important;
         border-radius: 10px !important;
         padding: 10px 18px !important;
@@ -585,14 +965,14 @@ st.markdown("""
         font-family: 'Inter', 'Poppins', sans-serif !important;
         letter-spacing: 0.2px;
         transition: all 0.3s ease !important;
-        box-shadow: 0 0 18px rgba(0, 224, 255, 0.4) !important;
+        box-shadow: 0 0 18px rgba(255, 107, 53, 0.4) !important;
     }
     
     .stButton > button:hover {
         transform: scale(1.02) !important;
-        box-shadow: 0 0 24px rgba(0, 224, 255, 0.6) !important;
-        background: linear-gradient(90deg, #14F1FF, #00FFA6) !important;
-        color: #1e3a8a !important;
+        box-shadow: 0 0 24px rgba(255, 107, 53, 0.6) !important;
+        background: linear-gradient(90deg, #FF8C42, #FF6B35) !important;
+        color: #000000 !important;
     }
     
     /* Secondary Buttons */
@@ -634,30 +1014,30 @@ st.markdown("""
     .stForm button[type="submit"] *,
     .stForm .stButton > button,
     .stForm .stButton > button * {
-        color: #1e3a8a !important;
+        color: #000000 !important;
     }
     
     button[kind="secondary"]:hover {
         background-color: rgba(255, 255, 255, 0.1) !important;
-        border-color: #00E0FF !important;
-        color: #00E0FF !important;
-        box-shadow: 0 0 12px rgba(0, 224, 255, 0.3) !important;
+        border-color: #FF6B35 !important;
+        color: #FF6B35 !important;
+        box-shadow: 0 0 12px rgba(255, 107, 53, 0.3) !important;
         transform: scale(1.01) !important;
     }
     
     /* Form Submit Buttons */
     .stForm button[type="submit"],
     .stForm .stButton > button {
-        background: linear-gradient(90deg, #00D1FF, #00FFA6) !important;
-        color: #1e3a8a !important;
+        background: linear-gradient(90deg, #FF6B35, #FF8C42) !important;
+        color: #000000 !important;
         border: none !important;
     }
     
     .stForm button[type="submit"]:hover,
     .stForm .stButton > button:hover {
-        background: linear-gradient(90deg, #14F1FF, #00FFA6) !important;
-        box-shadow: 0 0 24px rgba(0, 224, 255, 0.6) !important;
-        color: #1e3a8a !important;
+        background: linear-gradient(90deg, #FF8C42, #FF6B35) !important;
+        box-shadow: 0 0 24px rgba(255, 107, 53, 0.6) !important;
+        color: #000000 !important;
     }
     
     /* Force dark background on form inputs - override any inline styles */
@@ -667,100 +1047,100 @@ st.markdown("""
     .stForm input[type="number"],
     .stForm textarea,
     .stForm select {
-        background-color: rgb(25, 18, 24) !important;
-        background: rgb(25, 18, 24) !important;
+        background-color: #0A0A0A !important;
+        background: #0A0A0A !important;
         color: #FFFFFF !important;
     }
     
     
     /* ===== CARDS & CONTAINERS ===== */
     .dashboard-card, .content-card, .achievement-card {
-        background-color: #111729 !important;
+        background-color: #1A1A1A !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 16px !important;
         padding: 20px !important;
         margin-bottom: 20px !important;
-        box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05) !important;
+        box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05) !important;
         transition: all 0.3s ease !important;
         backdrop-filter: blur(14px);
     }
     
     .dashboard-card:hover, .content-card:hover, .achievement-card:hover {
-        box-shadow: 0 0 12px rgba(0, 224, 255, 0.3) !important;
+        box-shadow: 0 0 12px rgba(255, 107, 53, 0.3) !important;
         transform: translateY(-2px) scale(1.01) !important;
-        border-color: rgba(0, 224, 255, 0.3) !important;
+        border-color: rgba(255, 107, 53, 0.3) !important;
     }
     
     /* Metric Cards */
     [data-testid="stMetricContainer"] {
-        background-color: #111729 !important;
+        background-color: #1A1A1A !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 16px !important;
         padding: 20px !important;
-        box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05) !important;
+        box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05) !important;
         transition: all 0.3s ease !important;
     }
     
     [data-testid="stMetricContainer"]:hover {
-        box-shadow: 0 0 12px rgba(0, 224, 255, 0.3) !important;
+        box-shadow: 0 0 12px rgba(255, 107, 53, 0.3) !important;
         transform: translateY(-2px) scale(1.01) !important;
-        border-color: rgba(0, 224, 255, 0.3) !important;
+        border-color: rgba(255, 107, 53, 0.3) !important;
     }
     
     [data-testid="stMetricValue"] {
-        color: #00E0FF !important;
+        color: #FF6B35 !important;
         font-weight: 700 !important;
         font-size: 2rem !important;
     }
     
     [data-testid="stMetricLabel"] {
-        color: #94A3B8 !important;
+        color: #CCCCCC !important;
         font-weight: 500 !important;
         font-size: 0.9rem !important;
     }
     
     /* ===== TABLES & DATAFRAMES ===== */
     .dataframe {
-        background-color: #111729 !important;
+        background-color: #1A1A1A !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 16px !important;
         overflow-x: auto !important;
-        box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05) !important;
+        box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05) !important;
     }
     
     .dataframe th {
         background-color: #1A2337 !important;
-        color: #00E0FF !important;
+        color: #FF6B35 !important;
         font-weight: 600 !important;
         padding: 12px !important;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
     }
     
     .dataframe td {
-        background-color: #111729 !important;
+        background-color: #1A1A1A !important;
         color: #FFFFFF !important;
         padding: 10px 12px !important;
         border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
     }
     
     .dataframe tbody tr:hover {
-        background-color: rgba(0, 224, 255, 0.05) !important;
+        background-color: rgba(255, 107, 53, 0.05) !important;
     }
     
     .dataframe tbody tr:nth-child(even) {
-        background-color: #111729 !important;
+        background-color: #1A1A1A !important;
     }
     
     .dataframe tbody tr:nth-child(odd) {
-        background-color: #0D1324 !important;
+        background-color: #0A0A0A !important;
     }
     
     [data-testid="stDataFrame"] {
-        background-color: #111729 !important;
+        background-color: #1A1A1A !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 16px !important;
         padding: 20px !important;
-        box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05) !important;
+        box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05) !important;
     }
     
     /* ===== TABS ===== */
@@ -773,7 +1153,7 @@ st.markdown("""
     
     .stTabs [data-baseweb="tab"] {
         background-color: rgba(255, 255, 255, 0.04) !important;
-        color: #94A3B8 !important;
+        color: #CCCCCC !important;
         border: none !important;
         border-radius: 10px !important;
         padding: 0.75rem 1.5rem !important;
@@ -784,31 +1164,31 @@ st.markdown("""
     }
     
     .stTabs [aria-selected="true"] {
-        background-color: #111729 !important;
-        color: #00E0FF !important;
+        background-color: #1A1A1A !important;
+        color: #FF6B35 !important;
         font-weight: 600 !important;
         border-bottom: none !important;
     }
     
     .stTabs [aria-selected="false"]:hover {
-        background-color: rgba(0, 224, 255, 0.1) !important;
-        color: #00E0FF !important;
+        background-color: rgba(255, 107, 53, 0.1) !important;
+        color: #FF6B35 !important;
     }
     
     /* Tab highlight indicator - primary blue background */
     [data-baseweb="tab-highlight"] {
-        background-color: #00E0FF !important;
+        background-color: #FF6B35 !important;
         border-radius: 10px !important;
         opacity: 1 !important;
     }
     
     /* ===== FORMS ===== */
     .stForm {
-        background-color: #111729 !important;
+        background-color: #1A1A1A !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 16px !important;
         padding: 20px !important;
-        box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05) !important;
+        box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05) !important;
     }
     
     label {
@@ -819,8 +1199,8 @@ st.markdown("""
     
     /* ===== ALERTS & MESSAGES ===== */
     .stInfo {
-        background-color: rgba(59, 130, 246, 0.1) !important;
-        border-left: 4px solid #3B82F6 !important;
+        background-color: rgba(255, 140, 66, 0.1) !important;
+        border-left: 4px solid #FF6B35 !important;
         color: #FFFFFF !important;
         border-radius: 8px !important;
     }
@@ -833,15 +1213,15 @@ st.markdown("""
     }
     
     .stError {
-        background-color: rgba(0, 224, 255, 0.1) !important;
-        border-left: 4px solid #00E0FF !important;
+        background-color: rgba(255, 107, 53, 0.1) !important;
+        border-left: 4px solid #FF6B35 !important;
         color: #FFFFFF !important;
         border-radius: 8px !important;
     }
     
     .stWarning {
-        background-color: rgba(0, 224, 255, 0.1) !important;
-        border-left: 4px solid #00E0FF !important;
+        background-color: rgba(255, 107, 53, 0.1) !important;
+        border-left: 4px solid #FF6B35 !important;
         color: #FFFFFF !important;
         border-radius: 8px !important;
     }
@@ -858,17 +1238,17 @@ st.markdown("""
     }
     
     ::-webkit-scrollbar-thumb {
-        background: #00E0FF;
+        background: #FF6B35;
         border-radius: 5px;
     }
     
     ::-webkit-scrollbar-thumb:hover {
-        background: #14F1FF;
+        background: #FF8C42;
     }
     
     /* ===== PROGRESS BARS ===== */
     .stProgress > div > div > div {
-        background: linear-gradient(90deg, #00D1FF, #00FFA6) !important;
+        background: linear-gradient(90deg, #FF6B35, #FF8C42) !important;
     }
     
     .stProgress > div {
@@ -878,7 +1258,7 @@ st.markdown("""
     
     /* ===== EXPANDERS ===== */
     .streamlit-expanderHeader {
-        background-color: #111729 !important;
+        background-color: #1A1A1A !important;
         color: #FFFFFF !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 10px !important;
@@ -902,7 +1282,7 @@ st.markdown("""
     /* Add custom arrow to expander header */
     .streamlit-expanderHeader::before {
         content: '>' !important;
-        color: #00E0FF !important;
+        color: #FF6B35 !important;
         font-weight: bold !important;
         font-size: 1.2rem !important;
         margin-right: 8px !important;
@@ -916,7 +1296,7 @@ st.markdown("""
     }
     
     .streamlit-expanderContent {
-        background-color: #0D1324 !important;
+        background-color: #0A0A0A !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-top: none !important;
         border-radius: 0 0 10px 10px !important;
@@ -925,8 +1305,8 @@ st.markdown("""
     
     /* ===== CODE BLOCKS ===== */
     code {
-        background-color: #111729 !important;
-        color: #00E0FF !important;
+        background-color: #1A1A1A !important;
+        color: #FF6B35 !important;
         padding: 4px 8px !important;
         border-radius: 6px !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -934,7 +1314,7 @@ st.markdown("""
     }
     
     pre {
-        background-color: #111729 !important;
+        background-color: #1A1A1A !important;
         color: #FFFFFF !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 10px !important;
@@ -944,13 +1324,13 @@ st.markdown("""
     
     /* ===== LINKS ===== */
     a {
-        color: #00E0FF !important;
+        color: #FF6B35 !important;
         text-decoration: none !important;
         transition: all 0.3s ease !important;
     }
     
     a:hover {
-        color: #14F1FF !important;
+        color: #FF8C42 !important;
         text-decoration: underline !important;
     }
     
@@ -975,11 +1355,11 @@ st.markdown("""
     .stSelectbox [data-baseweb="menu"],
     .stSelectbox ul[role="listbox"],
     .stSelectbox div[role="listbox"] {
-        background-color: #111729 !important;
-        background: #111729 !important;
+        background-color: #1A1A1A !important;
+        background: #1A1A1A !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 10px !important;
-        box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.1) !important;
+        box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.1) !important;
     }
     
     /* Dark background for dropdown options */
@@ -992,8 +1372,8 @@ st.markdown("""
     /* BaseWeb option items */
     [data-baseweb="select"] ~ div [role="option"],
     [data-baseweb="select"] ~ div li {
-        background-color: #111729 !important;
-        background: #111729 !important;
+        background-color: #1A1A1A !important;
+        background: #1A1A1A !important;
         color: #FFFFFF !important;
     }
     
@@ -1006,16 +1386,16 @@ st.markdown("""
     div[role="listbox"] [role="option"]:hover,
     [data-baseweb="select"] ~ div [role="option"]:hover,
     [data-baseweb="select"] ~ div li:hover {
-        background-color: rgba(0, 224, 255, 0.15) !important;
-        color: #00E0FF !important;
+        background-color: rgba(255, 107, 53, 0.15) !important;
+        color: #FF6B35 !important;
     }
     
     /* Selected option in dropdown */
     [data-baseweb="menu"] li[aria-selected="true"],
     [role="listbox"] [role="option"][aria-selected="true"],
     [data-baseweb="select"] ~ div [role="option"][aria-selected="true"] {
-        background-color: rgba(0, 224, 255, 0.2) !important;
-        color: #00E0FF !important;
+        background-color: rgba(255, 107, 53, 0.2) !important;
+        color: #FF6B35 !important;
     }
     
     /* Selectbox input field */
@@ -1048,7 +1428,7 @@ st.markdown("""
         display: inline-flex !important;
         opacity: 1 !important;
         background-color: rgba(255, 255, 255, 0.06) !important;
-        color: #00E0FF !important;
+        color: #FF6B35 !important;
         border: 1px solid rgba(255, 255, 255, 0.12) !important;
         border-radius: 8px !important;
     }
@@ -1088,7 +1468,7 @@ st.markdown("""
     
     /* Style header but keep sidebar toggle visible - Neo Dark Theme */
     [data-testid="stHeader"] {
-        background-color: #0D1324 !important;
+        background-color: #0A0A0A !important;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
         visibility: visible !important;
         backdrop-filter: blur(14px);
@@ -1106,22 +1486,22 @@ st.markdown("""
     /* ===== MULTISELECT TAGS ===== */
     /* Change multiselect selected item tags from red to blue */
     [data-baseweb="tag"] {
-        background-color: #00E0FF !important;
-        background: #00E0FF !important;
+        background-color: #FF6B35 !important;
+        background: #FF6B35 !important;
         color: #FFFFFF !important;
-        border-color: #00E0FF !important;
+        border-color: #FF6B35 !important;
     }
     
     /* Multiselect tag hover state */
     [data-baseweb="tag"]:hover {
-        background-color: #14F1FF !important;
-        border-color: #14F1FF !important;
+        background-color: #FF8C42 !important;
+        border-color: #FF8C42 !important;
     }
     
     /* Multiselect input container */
     [data-baseweb="select"] [data-baseweb="tag"] {
-        background-color: #00E0FF !important;
-        background: #00E0FF !important;
+        background-color: #FF6B35 !important;
+        background: #FF6B35 !important;
         color: #FFFFFF !important;
     }
     
@@ -1129,18 +1509,18 @@ st.markdown("""
     [data-baseweb="tag"][style*="rgb(255"],
     [data-baseweb="tag"][style*="red"],
     [data-baseweb="tag"][style*="#ff"] {
-        background-color: #00E0FF !important;
-        background: #00E0FF !important;
-        border-color: #00E0FF !important;
+        background-color: #FF6B35 !important;
+        background: #FF6B35 !important;
+        border-color: #FF6B35 !important;
     }
     
     /* Streamlit multiselect specific classes */
     .stMultiSelect [data-baseweb="tag"],
     .stMultiSelect [role="option"][aria-selected="true"] {
-        background-color: #00E0FF !important;
-        background: #00E0FF !important;
+        background-color: #FF6B35 !important;
+        background: #FF6B35 !important;
         color: #FFFFFF !important;
-        border-color: #00E0FF !important;
+        border-color: #FF6B35 !important;
     }
     
     /* Override orange color for .st-dw class */
@@ -1437,6 +1817,90 @@ def display_table_with_actions(data_list, columns_config, edit_callback, delete_
                     delete_callback(item)
 
 # Helper function to convert JSON/dict to table
+def _display_formatted_summary(data_list):
+    """Display data as formatted summary with metrics instead of raw table"""
+    if not data_list or len(data_list) == 0:
+        return
+    
+    # Determine data type from first item
+    first_item = data_list[0]
+    
+    # Goals summary
+    if "goal_type" in first_item or "target_value" in first_item:
+        total = len(data_list)
+        completed = len([g for g in data_list if g.get("status") == "completed"])
+        in_progress = len([g for g in data_list if g.get("status") == "in_progress"])
+        overdue = len([g for g in data_list if g.get("deadline") and datetime.fromisoformat(g.get("deadline", "")) < datetime.now() and g.get("status") != "completed"])
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Goals", total)
+        with col2:
+            st.metric("Completed", completed)
+        with col3:
+            st.metric("In Progress", in_progress)
+        with col4:
+            st.metric("Overdue", overdue)
+        
+        # Show top 3 goals
+        if len(data_list) > 0:
+            st.markdown("#### Top Goals")
+            for i, goal in enumerate(data_list[:3], 1):
+                progress = goal.get("progress_percentage", 0)
+                st.write(f"**{i}. {goal.get('title', 'Untitled')}** - {progress:.1f}% complete")
+    
+    # Tasks summary
+    elif "priority" in first_item or "due_date" in first_item:
+        total = len(data_list)
+        completed = len([t for t in data_list if t.get("status") == "completed"])
+        pending = len([t for t in data_list if t.get("status") == "pending"])
+        in_progress = len([t for t in data_list if t.get("status") == "in_progress"])
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Tasks", total)
+        with col2:
+            st.metric("Completed", completed)
+        with col3:
+            st.metric("Pending", pending)
+        with col4:
+            st.metric("In Progress", in_progress)
+        
+        # Show top 3 tasks
+        if len(data_list) > 0:
+            st.markdown("#### Recent Tasks")
+            for i, task in enumerate(data_list[:3], 1):
+                status_emoji = {"completed": "✅", "in_progress": "🔄", "pending": "⏳"}
+                st.write(f"**{i}. {task.get('title', 'Untitled')}** {status_emoji.get(task.get('status'), '📋')} {task.get('status', 'N/A')}")
+    
+    # Performance summary
+    elif "performance_score" in first_item:
+        avg_score = sum(p.get("performance_score", 0) for p in data_list) / len(data_list) if data_list else 0
+        st.metric("Average Performance Score", f"{avg_score:.1f}")
+    
+    # Default: show count and key metrics
+    else:
+        st.metric("Total Items", len(data_list))
+        if len(data_list) > 0:
+            st.info(f"Showing {len(data_list)} item(s). Use specific queries to see detailed information.")
+
+def _display_formatted_metrics(data_dict):
+    """Display dictionary data as formatted metrics"""
+    if not data_dict:
+        return
+    
+    # Create columns for metrics
+    cols = st.columns(min(4, len(data_dict)))
+    for idx, (key, value) in enumerate(data_dict.items()):
+        if idx < len(cols):
+            with cols[idx]:
+                # Format key name
+                display_key = key.replace("_", " ").title()
+                if isinstance(value, (int, float)):
+                    st.metric(display_key, f"{value:.1f}" if isinstance(value, float) else value)
+                else:
+                    st.metric(display_key, str(value))
+
 def display_as_table(data):
     """Convert JSON/dict data to a representative visual format"""
     if not data:
@@ -1463,19 +1927,19 @@ def display_as_table(data):
                             nested_items.append(f"{str(k).replace('_', ' ').title()}: {formatted_v}")
                         display_value = "<br>".join(nested_items)
                         st.markdown(f"""
-                            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); 
+                            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); 
                                         border-radius: 12px; padding: 15px; margin-bottom: 10px;">
-                                <div style="font-size: 0.85rem; color: #94A3B8; margin-bottom: 8px; font-weight: 600;">{str(key).replace('_', ' ').title()}</div>
-                                <div style="font-size: 0.95rem; color: #00E0FF; line-height: 1.6;">{display_value}</div>
+                                <div style="font-size: 0.85rem; color: #CCCCCC; margin-bottom: 8px; font-weight: 600;">{str(key).replace('_', ' ').title()}</div>
+                                <div style="font-size: 0.95rem; color: #FF6B35; line-height: 1.6;">{display_value}</div>
                             </div>
                         """, unsafe_allow_html=True)
                     elif isinstance(value, list):
                         display_value = f"{len(value)} items"
                         st.markdown(f"""
-                            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); 
+                            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); 
                                         border-radius: 12px; padding: 15px; margin-bottom: 10px;">
-                                <div style="font-size: 0.85rem; color: #94A3B8; margin-bottom: 5px;">{str(key).replace('_', ' ').title()}</div>
-                                <div style="font-size: 1.2rem; font-weight: 600; color: #00E0FF;">{display_value}</div>
+                                <div style="font-size: 0.85rem; color: #CCCCCC; margin-bottom: 5px;">{str(key).replace('_', ' ').title()}</div>
+                                <div style="font-size: 1.2rem; font-weight: 600; color: #FF6B35;">{display_value}</div>
                             </div>
                         """, unsafe_allow_html=True)
                     else:
@@ -1489,10 +1953,10 @@ def display_as_table(data):
                             display_value = str(value)
                         
                         st.markdown(f"""
-                            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); 
+                            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); 
                                         border-radius: 12px; padding: 15px; margin-bottom: 10px;">
-                                <div style="font-size: 0.85rem; color: #94A3B8; margin-bottom: 5px;">{str(key).replace('_', ' ').title()}</div>
-                                <div style="font-size: 1.2rem; font-weight: 600; color: #00E0FF;">{display_value}</div>
+                                <div style="font-size: 0.85rem; color: #CCCCCC; margin-bottom: 5px;">{str(key).replace('_', ' ').title()}</div>
+                                <div style="font-size: 1.2rem; font-weight: 600; color: #FF6B35;">{display_value}</div>
                             </div>
                         """, unsafe_allow_html=True)
         else:
@@ -1510,10 +1974,10 @@ def display_as_table(data):
                             display_value = f"{value:,.2f}" if isinstance(value, float) else (f"{value:,}" if isinstance(value, int) else str(value))
                         
                         st.markdown(f"""
-                            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); 
+                            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); 
                                         border-radius: 12px; padding: 15px; margin-bottom: 10px;">
-                                <div style="font-size: 0.85rem; color: #94A3B8; margin-bottom: 5px;">{str(key).replace('_', ' ').title()}</div>
-                                <div style="font-size: 1.2rem; font-weight: 600; color: #00E0FF;">{display_value}</div>
+                                <div style="font-size: 0.85rem; color: #CCCCCC; margin-bottom: 5px;">{str(key).replace('_', ' ').title()}</div>
+                                <div style="font-size: 1.2rem; font-weight: 600; color: #FF6B35;">{display_value}</div>
                             </div>
                         """, unsafe_allow_html=True)
     elif isinstance(data, list):
@@ -1536,18 +2000,18 @@ def display_as_table(data):
             for idx, val in enumerate(data):
                 with cols[idx % len(cols)]:
                     st.markdown(f"""
-                        <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); 
+                        <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); 
                                     border-radius: 12px; padding: 15px; margin-bottom: 10px;">
-                            <div style="font-size: 0.85rem; color: #94A3B8; margin-bottom: 5px;">Item #{idx + 1}</div>
-                            <div style="font-size: 1.2rem; font-weight: 600; color: #00E0FF;">{str(val)}</div>
+                            <div style="font-size: 0.85rem; color: #CCCCCC; margin-bottom: 5px;">Item #{idx + 1}</div>
+                            <div style="font-size: 1.2rem; font-weight: 600; color: #FF6B35;">{str(val)}</div>
                         </div>
                     """, unsafe_allow_html=True)
     else:
         # Simple value - display as metric card
         st.markdown(f"""
-            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); 
+            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); 
                         border-radius: 12px; padding: 20px; text-align: center;">
-                <div style="font-size: 1.5rem; font-weight: 600; color: #00E0FF;">{str(data)}</div>
+                <div style="font-size: 1.5rem; font-weight: 600; color: #FF6B35;">{str(data)}</div>
             </div>
         """, unsafe_allow_html=True)
 
@@ -1556,49 +2020,45 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "user" not in st.session_state:
     st.session_state.user = None
-if "data_manager" not in st.session_state:
-    # Use HybridDataManager which can use API when available, falls back to JSON
-    st.session_state.data_manager = HybridDataManager()
-if "auth_manager" not in st.session_state:
-    st.session_state.auth_manager = AuthManager(st.session_state.data_manager)
+
+if USE_API_BACKEND:
+    # API mode - use API client
+    if "api_client" not in st.session_state:
+        if APIClient is None:
+            st.error("⚠️ API client not available. Please install httpx: `pip install httpx`")
+            USE_API_BACKEND = False
+        else:
+            st.session_state.api_client = APIClient()
+else:
+    # Direct mode - use agents directly
+    if "data_manager" not in st.session_state:
+        st.session_state.data_manager = DataManager()
+    if "auth_manager" not in st.session_state:
+        st.session_state.auth_manager = AuthManager(st.session_state.data_manager)
+    # Initialize event bus and handlers (event-driven architecture)
+    if "event_bus" not in st.session_state:
+        st.session_state.event_bus = EventBus()
+        set_event_bus(st.session_state.event_bus)
+    if "event_handlers" not in st.session_state:
+        from components.agents.event_handlers import EventHandlers
+        st.session_state.event_handlers = EventHandlers(st.session_state.data_manager)
 
 # Initialize agents
 def initialize_agents():
-    """Initialize all agents"""
+    """Initialize essential agents for performance reports and feedback (6 agents only)"""
     data_manager = st.session_state.data_manager
     notification_agent = NotificationAgent(data_manager)
     performance_agent = EnhancedPerformanceAgent(data_manager)
     reporting_agent = ReportingAgent(data_manager)
-    risk_agent = RiskDetectionAgent(data_manager, performance_agent, reporting_agent)
-    comparison_agent = ComparisonAgent(data_manager, performance_agent)
-    enhanced_ai_agent = EnhancedAIAgent(data_manager, performance_agent)
-    achievement_agent = AchievementAgent(data_manager, notification_agent)
-    predictive_analytics_agent = PredictiveAnalyticsAgent(data_manager, performance_agent, reporting_agent)
-    correlation_agent = CorrelationAgent(data_manager, performance_agent)
     
     return {
-        "task_agent": TaskAgent(data_manager, notification_agent),
         "performance_agent": performance_agent,
         "reporting_agent": reporting_agent,
         "notification_agent": notification_agent,
-        "risk_agent": risk_agent,
-        "assistant_agent": AssistantAgent(data_manager, performance_agent, reporting_agent),
         "export_agent": ExportAgent(data_manager),
         "goal_agent": GoalAgent(data_manager, notification_agent),
         "feedback_agent": FeedbackAgent(data_manager, notification_agent),
-        "filtering_agent": FilteringAgent(),
-        "comparison_agent": comparison_agent,
-        "enhanced_ai_agent": enhanced_ai_agent,
-        "achievement_agent": achievement_agent,
-        "predictive_analytics_agent": predictive_analytics_agent,
-        "correlation_agent": correlation_agent,
-        "skill_agent": SkillAgent(data_manager),
-        "workload_agent": WorkloadAgent(data_manager),
-        "attendance_agent": AttendanceAgent(data_manager),
-        "engagement_agent": EngagementAgent(data_manager),
-        "promotion_agent": PromotionAgent(data_manager),
-        "badge_agent": BadgeAgent(data_manager),
-        "review_360_agent": Review360Agent(data_manager)
+        "promotion_agent": PromotionAgent(data_manager)
     }
 
 # Login page
@@ -1624,14 +2084,29 @@ def login_page():
             
             if submit:
                 if email and password:
-                    result = st.session_state.auth_manager.authenticate(email, password)
-                    if result:
-                        st.session_state.authenticated = True
-                        st.session_state.user = result
-                        st.success("Login successful!")
-                        st.rerun()
+                    if USE_API_BACKEND:
+                        # Use API
+                        try:
+                            result = st.session_state.api_client.login(email, password)
+                            if result.get("success"):
+                                st.session_state.authenticated = True
+                                st.session_state.user = result.get("user")
+                                st.success("Login successful!")
+                                st.rerun()
+                            else:
+                                st.error("Invalid credentials")
+                        except Exception as e:
+                            st.error(f"Login failed: {str(e)}")
                     else:
-                        st.error("Invalid credentials")
+                        # Use direct auth
+                        result = st.session_state.auth_manager.authenticate(email, password)
+                        if result:
+                            st.session_state.authenticated = True
+                            st.session_state.user = result
+                            st.success("Login successful!")
+                            st.rerun()
+                        else:
+                            st.error("Invalid credentials")
                 else:
                     st.error("Please enter both email and password")
         
@@ -1642,43 +2117,138 @@ def login_page():
 
 # Main dashboard
 def dashboard():
-    """Main dashboard with enhanced styling - Team Performance Dashboard for Managers"""
+    """Main dashboard with enhanced styling - Role-based dashboard"""
     user_role = st.session_state.user.get("role", "employee")
+    user_id = st.session_state.user.get("id")
+    user_email = st.session_state.user.get("email")
     
-    st.markdown("""
+    # Role-based title
+    if user_role in ["owner", "manager"]:
+        title = "Team Performance Dashboard"
+        description = "Monitor and track your team's performance metrics, KPIs, and analytics"
+    else:
+        title = "My Performance Dashboard"
+        description = "Track your personal performance, tasks, and goals"
+    
+    st.markdown(f"""
         <style>
-        .performance-overview {
+        .performance-overview {{
             font-size: 2.5rem;
             font-weight: 700;
             color: #FFFFFF;
             margin-bottom: 0.5rem;
-        }
-        .performance-description {
-            color: #94A3B8;
+        }}
+        .performance-description {{
+            color: #CCCCCC;
             opacity: 0.9;
             margin-bottom: 2rem;
-        }
+        }}
         </style>
-        <div class="performance-overview">Team Performance Dashboard</div>
-        <div class="performance-description">Monitor and track your team's performance metrics, KPIs, and analytics</div>
+        <div class="performance-overview">{title}</div>
+        <div class="performance-description">{description}</div>
     """, unsafe_allow_html=True)
     
     agents = initialize_agents()
     performance_agent = agents["performance_agent"]
-    task_agent = agents["task_agent"]
     goal_agent = agents["goal_agent"]
     
-    # Overview metrics
-    overview = agents["reporting_agent"].generate_overview_report()
-    
-    # Get all employees and their performance
+    # Get data
     employees = st.session_state.data_manager.load_data("employees") or []
-    tasks = task_agent.get_tasks()
+    tasks = st.session_state.data_manager.load_data("tasks") or []
     goals = goal_agent.get_all_goals()
     performance_data = st.session_state.data_manager.load_data("performances") or []
     
+    # For employees: show only their data
+    if user_role == "employee":
+        # Get current employee
+        current_employee = next((e for e in employees if e.get("id") == user_id or e.get("email") == user_email), None)
+        if not current_employee:
+            st.error("Employee data not found. Please contact administrator.")
+            return
+        
+        # Get employee's performance
+        eval_data = performance_agent.evaluate_employee(current_employee.get("id"), save=False)
+        
+        # Personal KPI Cards
+        st.markdown("### 📊 My Performance")
+        kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
+        with kpi_col1:
+            perf_score = eval_data.get('performance_score', 0) if eval_data else 0
+            st.markdown(f"""
+                <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05);">
+                    <div style="font-size: 0.9rem; color: #CCCCCC; margin-bottom: 0.5rem;">Performance Score</div>
+                    <div style="font-size: 2.5rem; font-weight: 700; color: #FF6B35;">{perf_score:.1f}%</div>
+                </div>
+            """, unsafe_allow_html=True)
+        with kpi_col2:
+            completion_rate = eval_data.get('completion_rate', 0) if eval_data else 0
+            st.markdown(f"""
+                <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05);">
+                    <div style="font-size: 0.9rem; color: #CCCCCC; margin-bottom: 0.5rem;">Completion Rate</div>
+                    <div style="font-size: 2.5rem; font-weight: 700; color: #FF6B35;">{completion_rate:.1f}%</div>
+                </div>
+            """, unsafe_allow_html=True)
+        with kpi_col3:
+            on_time_rate = eval_data.get('on_time_rate', 0) if eval_data else 0
+            st.markdown(f"""
+                <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05);">
+                    <div style="font-size: 0.9rem; color: #CCCCCC; margin-bottom: 0.5rem;">On-Time Rate</div>
+                    <div style="font-size: 2.5rem; font-weight: 700; color: #FF6B35;">{on_time_rate:.1f}%</div>
+                </div>
+            """, unsafe_allow_html=True)
+        with kpi_col4:
+            my_tasks = [t for t in tasks if t.get("assigned_to") == current_employee.get("id")]
+            active_tasks = len([t for t in my_tasks if t.get("status") in ["pending", "in_progress"]])
+            st.markdown(f"""
+                <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05);">
+                    <div style="font-size: 0.9rem; color: #CCCCCC; margin-bottom: 0.5rem;">Active Tasks</div>
+                    <div style="font-size: 2.5rem; font-weight: 700; color: #FF6B35;">{active_tasks}</div>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # My Tasks Summary
+        st.markdown("### ✅ My Tasks")
+        my_tasks = [t for t in tasks if t.get("assigned_to") == current_employee.get("id")]
+        if my_tasks:
+            completed = len([t for t in my_tasks if t.get("status") == "completed"])
+            pending = len([t for t in my_tasks if t.get("status") == "pending"])
+            in_progress = len([t for t in my_tasks if t.get("status") == "in_progress"])
+            
+            task_col1, task_col2, task_col3 = st.columns(3)
+            with task_col1:
+                st.metric("Completed", completed)
+            with task_col2:
+                st.metric("In Progress", in_progress)
+            with task_col3:
+                st.metric("Pending", pending)
+        else:
+            st.info("No tasks assigned yet.")
+        
+        # My Goals Summary
+        st.markdown("### 🎯 My Goals")
+        my_goals = [g for g in goals if g.get("employee_id") == current_employee.get("id")]
+        if my_goals:
+            completed_goals = len([g for g in my_goals if g.get("status") == "completed"])
+            in_progress_goals = len([g for g in my_goals if g.get("status") == "in_progress"])
+            
+            goal_col1, goal_col2 = st.columns(2)
+            with goal_col1:
+                st.metric("Total Goals", len(my_goals))
+            with goal_col2:
+                st.metric("Completed", completed_goals)
+        else:
+            st.info("No goals set yet.")
+        
+        return
+    
+    # For managers/owners: show team data
+    # Overview metrics
+    overview = agents["reporting_agent"].generate_overview_report()
+    
     # Calculate team KPIs
-    team_employees = employees  # For now, all employees (can filter by department later)
+    team_employees = employees
     team_performance_scores = []
     team_completion_rates = []
     team_on_time_rates = []
@@ -1700,30 +2270,30 @@ def dashboard():
     kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
     with kpi_col1:
         st.markdown(f"""
-            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 0.5rem;">Average Team Performance</div>
-                <div style="font-size: 2.5rem; font-weight: 700; color: #00E0FF;">{avg_team_performance:.1f}%</div>
+            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05);">
+                <div style="font-size: 0.9rem; color: #CCCCCC; margin-bottom: 0.5rem;">Average Team Performance</div>
+                <div style="font-size: 2.5rem; font-weight: 700; color: #FF6B35;">{avg_team_performance:.1f}%</div>
             </div>
         """, unsafe_allow_html=True)
     with kpi_col2:
         st.markdown(f"""
-            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 0.5rem;">Average Completion Rate</div>
-                <div style="font-size: 2.5rem; font-weight: 700; color: #00E0FF;">{avg_completion_rate:.1f}%</div>
+            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05);">
+                <div style="font-size: 0.9rem; color: #CCCCCC; margin-bottom: 0.5rem;">Average Completion Rate</div>
+                <div style="font-size: 2.5rem; font-weight: 700; color: #FF6B35;">{avg_completion_rate:.1f}%</div>
             </div>
         """, unsafe_allow_html=True)
     with kpi_col3:
         st.markdown(f"""
-            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 0.5rem;">Average On-Time Rate</div>
-                <div style="font-size: 2.5rem; font-weight: 700; color: #00E0FF;">{avg_on_time_rate:.1f}%</div>
+            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05);">
+                <div style="font-size: 0.9rem; color: #CCCCCC; margin-bottom: 0.5rem;">Average On-Time Rate</div>
+                <div style="font-size: 2.5rem; font-weight: 700; color: #FF6B35;">{avg_on_time_rate:.1f}%</div>
             </div>
         """, unsafe_allow_html=True)
     with kpi_col4:
         st.markdown(f"""
-            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 0.5rem;">Team Size</div>
-                <div style="font-size: 2.5rem; font-weight: 700; color: #00E0FF;">{len(team_employees)}</div>
+            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05);">
+                <div style="font-size: 0.9rem; color: #CCCCCC; margin-bottom: 0.5rem;">Team Size</div>
+                <div style="font-size: 2.5rem; font-weight: 700; color: #FF6B35;">{len(team_employees)}</div>
             </div>
         """, unsafe_allow_html=True)
     
@@ -1777,7 +2347,7 @@ def dashboard():
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 font_color='#FFFFFF',
-                title_font_color='#00E0FF',
+                title_font_color='#FF6B35',
                 xaxis=dict(gridcolor='rgba(255,255,255,0.1)'),
                 yaxis=dict(gridcolor='rgba(255,255,255,0.1)'),
                 height=400
@@ -1792,7 +2362,7 @@ def dashboard():
                 
                 fig_radar = go.Figure()
                 
-                colors = ['#00E0FF', '#14F1FF', '#3B82F6']
+                colors = ['#FF6B35', '#FF8C42', '#FF6B35']
                 for idx, emp in enumerate(top_3):
                     values = [
                         emp['performance_score'],
@@ -1814,11 +2384,11 @@ def dashboard():
                             visible=True,
                             range=[0, 100],
                             gridcolor='rgba(255,255,255,0.2)',
-                            tickfont=dict(color='#94A3B8')
+                            tickfont=dict(color='#CCCCCC')
                         ),
                         angularaxis=dict(
                             gridcolor='rgba(255,255,255,0.2)',
-                            tickfont=dict(color='#94A3B8')
+                            tickfont=dict(color='#CCCCCC')
                         ),
                         bgcolor='rgba(0,0,0,0)'
                     ),
@@ -1826,7 +2396,7 @@ def dashboard():
                     paper_bgcolor='rgba(0,0,0,0)',
                     font_color='#FFFFFF',
                     title='Top 3 Employees - Multi-Metric Comparison',
-                    title_font_color='#00E0FF',
+                    title_font_color='#FF6B35',
                     height=400,
                     legend=dict(font=dict(color='#FFFFFF'))
                 )
@@ -1853,7 +2423,7 @@ def dashboard():
             name='Completion Rate',
             x=metrics_df['Employee'],
             y=metrics_df['Completion Rate'],
-            marker_color='#00E0FF',
+            marker_color='#FF6B35',
             text=metrics_df['Completion Rate'].round(1),
             textposition='outside'
         ))
@@ -1862,7 +2432,7 @@ def dashboard():
             name='On-Time Rate',
             x=metrics_df['Employee'],
             y=metrics_df['On-Time Rate'],
-            marker_color='#14F1FF',
+            marker_color='#FF8C42',
             text=metrics_df['On-Time Rate'].round(1),
             textposition='outside'
         ))
@@ -1873,7 +2443,7 @@ def dashboard():
             paper_bgcolor='rgba(0,0,0,0)',
             font_color='#FFFFFF',
             title='Completion Rate vs On-Time Rate',
-            title_font_color='#00E0FF',
+            title_font_color='#FF6B35',
             xaxis=dict(gridcolor='rgba(255,255,255,0.1)', tickangle=-45),
             yaxis=dict(gridcolor='rgba(255,255,255,0.1)', range=[0, 100]),
             legend=dict(font=dict(color='#FFFFFF')),
@@ -1898,7 +2468,7 @@ def dashboard():
             with col3:
                 # Performance score with color indicator
                 score = emp['performance_score']
-                color = "#3DDF85" if score >= 80 else "#00E0FF" if score >= 60 else "#00E0FF"
+                color = "#3DDF85" if score >= 80 else "#FF6B35" if score >= 60 else "#FF6B35"
                 st.markdown(f"<span style='color: {color}; font-size: 1.2em; font-weight: bold;'>{score:.1f}</span>", unsafe_allow_html=True)
             with col4:
                 st.write(f"{emp['completion_rate']:.1f}%")
@@ -1924,9 +2494,9 @@ def dashboard():
     
     with col1:
         st.markdown(f"""
-            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 0.5rem; opacity: 0.9;">Overall Team Score</div>
-                <div style="font-size: 2.5rem; font-weight: 700; color: #00E0FF;">{avg_performance:.0f}%</div>
+            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05);">
+                <div style="font-size: 0.9rem; color: #CCCCCC; margin-bottom: 0.5rem; opacity: 0.9;">Overall Team Score</div>
+                <div style="font-size: 2.5rem; font-weight: 700; color: #FF6B35;">{avg_performance:.0f}%</div>
             </div>
         """, unsafe_allow_html=True)
     
@@ -1943,17 +2513,17 @@ def dashboard():
         
         top_name = top_performer.get('name', 'N/A') if top_performer else 'N/A'
         st.markdown(f"""
-            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 0.5rem; opacity: 0.9;">Top Performer</div>
-                <div style="font-size: 1.2rem; font-weight: 600; color: #00E0FF;">{top_name}</div>
+            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05);">
+                <div style="font-size: 0.9rem; color: #CCCCCC; margin-bottom: 0.5rem; opacity: 0.9;">Top Performer</div>
+                <div style="font-size: 1.2rem; font-weight: 600; color: #FF6B35;">{top_name}</div>
             </div>
         """, unsafe_allow_html=True)
     
     with col3:
         st.markdown(f"""
-            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 0.5rem; opacity: 0.9;">Average Goal Completion</div>
-                <div style="font-size: 2.5rem; font-weight: 700; color: #00E0FF;">{task_completion:.0f}%</div>
+            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05);">
+                <div style="font-size: 0.9rem; color: #CCCCCC; margin-bottom: 0.5rem; opacity: 0.9;">Average Goal Completion</div>
+                <div style="font-size: 2.5rem; font-weight: 700; color: #FF6B35;">{task_completion:.0f}%</div>
             </div>
         """, unsafe_allow_html=True)
     
@@ -1961,9 +2531,9 @@ def dashboard():
         # Calculate feedback score (mock for now)
         feedback_score = 4.5
         st.markdown(f"""
-            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 0.5rem; opacity: 0.9;">Feedback Score</div>
-                <div style="font-size: 2.5rem; font-weight: 700; color: #00E0FF;">{feedback_score}/5</div>
+            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; text-align: center; box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05);">
+                <div style="font-size: 0.9rem; color: #CCCCCC; margin-bottom: 0.5rem; opacity: 0.9;">Feedback Score</div>
+                <div style="font-size: 2.5rem; font-weight: 700; color: #FF6B35;">{feedback_score}/5</div>
             </div>
         """, unsafe_allow_html=True)
     
@@ -1973,12 +2543,12 @@ def dashboard():
     st.markdown("""
         <style>
         .chart-card {
-            background-color: #111729;
+            background-color: #1A1A1A;
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 16px;
             padding: 20px;
             margin-bottom: 20px;
-            box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);
+            box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.1);
         }
         </style>
     """, unsafe_allow_html=True)
@@ -2000,16 +2570,16 @@ def dashboard():
                     y=scores,
                     title="",
                     labels={'x': 'Date', 'y': 'Performance Score'},
-                    color_discrete_sequence=['#00E0FF']
+                    color_discrete_sequence=['#FF6B35']
                 )
                 fig.update_layout(
-                    plot_bgcolor='#111729',
-                    paper_bgcolor='#111729',
+                    plot_bgcolor='#1A1A1A',
+                    paper_bgcolor='#1A1A1A',
                     font_color='#FFFFFF',
                     xaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)'),
                     yaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)')
                 )
-                fig.update_traces(line=dict(width=3), marker=dict(size=8, color='#00E0FF'))
+                fig.update_traces(line=dict(width=3), marker=dict(size=8, color='#FF6B35'))
                 st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
         
@@ -2029,16 +2599,16 @@ def dashboard():
             y=list(skills_data.values()),
             title="",
             labels={'x': 'Skill', 'y': 'Score'},
-            color_discrete_sequence=['#00E0FF']
+            color_discrete_sequence=['#FF6B35']
         )
         fig.update_layout(
-            plot_bgcolor='#111729',
-            paper_bgcolor='#111729',
+            plot_bgcolor='#1A1A1A',
+            paper_bgcolor='#1A1A1A',
             font_color='#FFFFFF',
             xaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)'),
             yaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)')
         )
-        fig.update_traces(marker_color='#00E0FF')
+        fig.update_traces(marker_color='#FF6B35')
         st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
     
@@ -2049,23 +2619,23 @@ def dashboard():
     reports_col1, reports_col2, reports_col3 = st.columns(3)
     with reports_col1:
         st.markdown("""
-            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                <div style="color: #00E0FF; font-weight: 600; margin-bottom: 0.5rem;">Performance Report</div>
-                <div style="color: #94A3B8; opacity: 0.7; font-size: 0.9rem;">Last updated: Today</div>
+            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05);">
+                <div style="color: #FF6B35; font-weight: 600; margin-bottom: 0.5rem;">Performance Report</div>
+                <div style="color: #CCCCCC; opacity: 0.7; font-size: 0.9rem;">Last updated: Today</div>
             </div>
         """, unsafe_allow_html=True)
     with reports_col2:
         st.markdown("""
-            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                <div style="color: #00E0FF; font-weight: 600; margin-bottom: 0.5rem;">Team Analysis</div>
-                <div style="color: #94A3B8; opacity: 0.7; font-size: 0.9rem;">Last updated: Yesterday</div>
+            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05);">
+                <div style="color: #FF6B35; font-weight: 600; margin-bottom: 0.5rem;">Team Analysis</div>
+                <div style="color: #CCCCCC; opacity: 0.7; font-size: 0.9rem;">Last updated: Yesterday</div>
             </div>
         """, unsafe_allow_html=True)
     with reports_col3:
         st.markdown("""
-            <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                <div style="color: #00E0FF; font-weight: 600; margin-bottom: 0.5rem;">Monthly Summary</div>
-                <div style="color: #94A3B8; opacity: 0.7; font-size: 0.9rem;">Last updated: This week</div>
+            <div style="background-color: #1A1A1A; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 20px; box-shadow: 0px 4px 20px rgba(255, 107, 53, 0.05);">
+                <div style="color: #FF6B35; font-weight: 600; margin-bottom: 0.5rem;">Monthly Summary</div>
+                <div style="color: #CCCCCC; opacity: 0.7; font-size: 0.9rem;">Last updated: This week</div>
             </div>
         """, unsafe_allow_html=True)
     
@@ -2134,2280 +2704,386 @@ def dashboard():
 
 # Projects page
 def projects_page():
-    """Projects management page"""
-    st.title("📁 Projects")
-    st.markdown("---")
+    """Projects management page - Modern redesign"""
+    # Header with gradient
+    st.markdown("""
+        <style>
+        .projects-header {
+            background: linear-gradient(135deg, #FF6B35 0%, #FF8C42 100%);
+            padding: 2rem;
+            border-radius: 16px;
+            margin-bottom: 2rem;
+            color: white;
+        }
+        .project-card {
+            background: #1A1A1A;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        .project-card:hover {
+            border-color: #FF6B35;
+            box-shadow: 0 8px 32px rgba(255, 107, 53, 0.2);
+        }
+        .task-card {
+            background: rgba(255, 107, 53, 0.05);
+            border-left: 4px solid #FF6B35;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .status-active { background: #10b981; color: white; }
+        .status-in_progress { background: #FF6B35; color: white; }
+        .status-completed { background: #6b7280; color: white; }
+        .status-on_hold { background: #f59e0b; color: white; }
+        .priority-high { color: #ef4444; }
+        .priority-medium { color: #f59e0b; }
+        .priority-low { color: #10b981; }
+        </style>
+    """, unsafe_allow_html=True)
     
-    # Role-based access control
-    user_role = st.session_state.user.get("role", "employee")
-    if user_role == "employee":
-        st.error("❌ Access Denied: You don't have permission to access this page.")
-        st.info("💡 Employees can view project information through their assigned tasks only.")
-        return
-    
-    data_manager = st.session_state.data_manager
-    projects = data_manager.load_data("projects") or []
-    
-    # Check if we should show view after creation
-    show_view_after_create = st.session_state.get("show_projects_view", False)
-    
-    if show_view_after_create:
-        st.session_state.show_projects_view = False
-        st.success("✅ Project created successfully! Viewing all projects below.")
-        st.markdown("---")
-        # Show view content immediately
-        projects = data_manager.load_data("projects") or []
-        if projects:
-            # Add index column
-            projects_with_index = []
-            for idx, project in enumerate(projects, start=1):
-                project_copy = project.copy()
-                project_copy['#'] = idx
-                # Move index to first position
-                projects_with_index.append({'#': idx, **{k: v for k, v in project_copy.items() if k != '#'}})
-            df = pd.DataFrame(projects_with_index)
-            # Reorder columns to put # first
-            cols = ['#'] + [col for col in df.columns if col != '#']
-            df = df[cols]
-            st.dataframe(df, use_container_width=True)
-        st.markdown("---")
-        st.markdown("### Or use tabs below to navigate")
-    
-    # Role-based tabs
-    if user_role in ["owner", "manager"]:
-        tab1, tab2, tab3 = st.tabs(["View Projects", "Create Project", "Project Reports"])
-    else:
-        # Employees can only view projects
-        tab1, tab3 = st.tabs(["View Projects", "Project Reports"])
-        tab2 = None
-    
-    with tab1:
-        if projects:
-            # Handle edit forms first - only for managers/owners
-            if user_role in ["owner", "manager"]:
-                for edit_idx, project in enumerate(projects):
-                    project_id = project.get('id')
-                    if st.session_state.get(f"editing_project_{project_id}", False):
-                        with st.expander(f"✏️ Editing: {project.get('name', 'Untitled')}", expanded=True):
-                            with st.form(f"edit_project_form_{edit_idx}_{project_id}"):
-                                edit_name = st.text_input("Project Name", value=project.get('name', ''), key=f"edit_name_{edit_idx}_{project_id}")
-                                edit_description = st.text_area("Description", value=project.get('description', ''), key=f"edit_desc_{edit_idx}_{project_id}")
-                                edit_status = st.selectbox("Status", ["active", "completed", "on_hold"], 
-                                                          index=["active", "completed", "on_hold"].index(project.get('status', 'active')),
-                                                          key=f"edit_project_status_{edit_idx}_{project_id}")
-                                edit_deadline = st.date_input("Deadline", 
-                                                             value=datetime.fromisoformat(project.get('deadline')) if project.get('deadline') else None,
-                                                             key=f"edit_deadline_{edit_idx}_{project_id}")
-                                # Show current manager (read-only) - manager is set when project is created
-                                st.info(f"**Manager:** {project.get('manager', 'N/A')} (assigned at creation)")
-                                
-                                col_save, col_cancel = st.columns(2)
-                                with col_save:
-                                    if st.form_submit_button("💾 Save Changes", key=f"save_btn_{edit_idx}_{project_id}"):
-                                        # Use API method if available
-                                        if hasattr(data_manager, 'update_project'):
-                                            data_manager.update_project(project_id, {
-                                                "name": edit_name,
-                                                "description": edit_description,
-                                                "status": edit_status,
-                                                "deadline": edit_deadline.isoformat() if edit_deadline else None
-                                            })
-                                        else:
-                                            project['name'] = edit_name
-                                            project['description'] = edit_description
-                                            project['status'] = edit_status
-                                            project['deadline'] = edit_deadline.isoformat() if edit_deadline else None
-                                            project['updated_at'] = datetime.now().isoformat()
-                                            data_manager.save_data("projects", projects)
-                                        st.session_state[f"editing_project_{project_id}"] = False
-                                        st.success("Project updated!")
-                                        st.rerun()
-                                with col_cancel:
-                                    if st.form_submit_button("❌ Cancel", key=f"cancel_btn_{edit_idx}_{project_id}"):
-                                        st.session_state[f"editing_project_{project_id}"] = False
-                                        st.rerun()
-            
-            # Create beautiful table with action buttons
-            st.markdown("""
-                <style>
-                .table-row-container {
-                    background-color: #111729;
-                    border: 1px solid rgba(255, 255, 255, 0.08);
-                    border-radius: 16px;
-                    padding: 20px;
-                    margin-bottom: 20px;
-                    box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);
-                    transition: all 0.3s ease;
-                }
-                .table-row-container:hover {
-                    box-shadow: 0 0 12px rgba(0, 224, 255, 0.3);
-                    transform: translateY(-2px) scale(1.01);
-                    border-color: rgba(0, 224, 255, 0.3);
-                }
-                </style>
-            """, unsafe_allow_html=True)
-            
-            # Table header
-            header_cols = st.columns([0.5, 2, 1, 1, 2, 1.5])
-            with header_cols[0]:
-                st.markdown("**#**")
-            with header_cols[1]:
-                st.markdown("**Name**")
-            with header_cols[2]:
-                st.markdown("**Status**")
-            with header_cols[3]:
-                st.markdown("**Deadline**")
-            with header_cols[4]:
-                st.markdown("**Description**")
-            with header_cols[5]:
-                st.markdown("**Actions**")
-            
-            st.markdown("---")
-            
-            # Table rows with action buttons
-            for idx, project in enumerate(projects):
-                project_id = project.get('id')
-                name = project.get('name', 'Untitled')
-                status = project.get('status', 'N/A')
-                deadline = project.get('deadline', 'N/A')[:10] if project.get('deadline') else 'N/A'
-                description = (project.get('description', '')[:50] + '...') if len(project.get('description', '')) > 50 else (project.get('description', '') or 'N/A')
-                
-                # Create row with columns
-                row_cols = st.columns([0.5, 2, 1, 1, 2, 1.5])
-                with row_cols[0]:
-                    st.write(f"**{idx + 1}**")
-                with row_cols[1]:
-                    st.write(f"**{name}**")
-                with row_cols[2]:
-                    st.write(status)
-                with row_cols[3]:
-                    st.write(deadline)
-                with row_cols[4]:
-                    st.write(description)
-                with row_cols[5]:
-                    # Only managers and owners can edit/delete
-                    if user_role in ["owner", "manager"]:
-                        btn_col1, btn_col2 = st.columns(2)
-                        with btn_col1:
-                            if st.button("✏️ Edit", key=f"view_projects_edit_{idx}_{project_id}", use_container_width=True):
-                                st.session_state[f"editing_project_{project_id}"] = True
-                                st.rerun()
-                        with btn_col2:
-                            if st.button("🗑️ Del", key=f"view_projects_delete_{idx}_{project_id}", use_container_width=True, type="secondary"):
-                                if hasattr(data_manager, 'delete_project'):
-                                    data_manager.delete_project(project_id)
-                                else:
-                                    projects = [p for p in projects if p.get("id") != project_id]
-                                    data_manager.save_data("projects", projects)
-                                st.success("Project deleted!")
-                                st.rerun()
-                    else:
-                        st.write("View Only")
-        else:
-            st.info("No projects found")
-    
-    if tab2:
-        with tab2:
-            with st.form("create_project"):
-                name = st.text_input("Project Name *")
-                description = st.text_area("Description")
-                status = st.selectbox("Status", ["active", "completed", "on_hold"], key="create_project_status")
-                deadline = st.date_input("Deadline")
-                # Manager is auto-set to the logged-in user's email
-                user_email = st.session_state.user.get("email", "")
-                
-                if st.form_submit_button("Create Project"):
-                    if name:
-                        # Use API method if available
-                        if hasattr(data_manager, 'create_project'):
-                            new_project = data_manager.create_project({
-                                "name": name,
-                                "description": description,
-                                "status": status,
-                                "deadline": deadline.isoformat() if deadline else None,
-                                "manager": user_email
-                            })
-                        else:
-                            new_project = {
-                                "id": str(len(projects) + 1),
-                                "name": name,
-                                "description": description,
-                                "status": status,
-                                "deadline": deadline.isoformat() if deadline else None,
-                                "manager": user_email,
-                                "created_at": datetime.now().isoformat(),
-                                "updated_at": datetime.now().isoformat()
-                            }
-                            projects.append(new_project)
-                            data_manager.save_data("projects", projects)
-                        st.session_state.show_projects_view = True
-                        st.rerun()
-    
-    with tab3:
-        if projects:
-            selected_project = st.selectbox("Select Project", ["-- Choose project --"] + [p.get("name") for p in projects], key="project_report_select")
-            if selected_project and selected_project != "-- Choose project --":
-                project = next((p for p in projects if p.get("name") == selected_project), None)
-                if project:
-                    agents = initialize_agents()
-                    report = agents["reporting_agent"].generate_project_report(project["id"])
-                    
-                    if report.get("error"):
-                        st.error(report.get("error"))
-                    else:
-                        # Project Header
-                        st.markdown(f"""
-                            <div style="background: linear-gradient(135deg, rgba(0, 224, 255, 0.1), rgba(59, 130, 246, 0.1)); 
-                                        border: 1px solid rgba(0, 224, 255, 0.2); border-radius: 16px; padding: 24px; margin-bottom: 24px;">
-                                <h2 style="color: #00E0FF; margin: 0 0 8px 0;">📁 {report.get('project_name', 'N/A')}</h2>
-                                <p style="color: #94A3B8; margin: 0;">
-                                    Status: <span style="color: #3DDF85;">{report.get('status', 'N/A').title()}</span> | 
-                                    Project ID: {report.get('project_id', 'N/A')}
-                                </p>
-                            </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Key Metrics Cards
-                        st.markdown("### 📊 Project Metrics")
-                        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-                        
-                        with metric_col1:
-                            st.markdown(f"""
-                                <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); 
-                                            border-radius: 16px; padding: 20px; text-align: center; 
-                                            box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                                    <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 0.5rem;">Total Tasks</div>
-                                    <div style="font-size: 2.5rem; font-weight: 700; color: #00E0FF;">{report.get('total_tasks', 0)}</div>
-                                </div>
-                            """, unsafe_allow_html=True)
-                        
-                        with metric_col2:
-                            st.markdown(f"""
-                                <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); 
-                                            border-radius: 16px; padding: 20px; text-align: center; 
-                                            box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                                    <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 0.5rem;">Completed</div>
-                                    <div style="font-size: 2.5rem; font-weight: 700; color: #3DDF85;">{report.get('completed_tasks', 0)}</div>
-                                </div>
-                            """, unsafe_allow_html=True)
-                        
-                        with metric_col3:
-                            st.markdown(f"""
-                                <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); 
-                                            border-radius: 16px; padding: 20px; text-align: center; 
-                                            box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                                    <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 0.5rem;">Completion Rate</div>
-                                    <div style="font-size: 2.5rem; font-weight: 700; color: #00E0FF;">{report.get('completion_rate', 0):.1f}%</div>
-                                </div>
-                            """, unsafe_allow_html=True)
-                        
-                        with metric_col4:
-                            health_score = report.get('health_score', 0)
-                            health_color = "#3DDF85" if health_score >= 70 else "#00E0FF" if health_score >= 50 else "#00E0FF"
-                            st.markdown(f"""
-                                <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); 
-                                            border-radius: 16px; padding: 20px; text-align: center; 
-                                            box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                                    <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 0.5rem;">Health Score</div>
-                                    <div style="font-size: 2.5rem; font-weight: 700; color: {health_color};">{health_score:.0f}</div>
-                                </div>
-                            """, unsafe_allow_html=True)
-                        
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        
-                        # Task Status Breakdown Chart
-                        chart_col1, chart_col2 = st.columns(2)
-                        
-                        with chart_col1:
-                            st.markdown("### 📈 Task Status Breakdown")
-                            task_data = {
-                                "Completed": report.get('completed_tasks', 0),
-                                "In Progress": report.get('in_progress_tasks', 0),
-                                "Pending": report.get('pending_tasks', 0)
-                            }
-                            
-                            # Create pie chart
-                            fig_pie = px.pie(
-                                values=list(task_data.values()),
-                                names=list(task_data.keys()),
-                                color_discrete_map={
-                                    "Completed": "#3DDF85",
-                                    "In Progress": "#00E0FF",
-                                    "Pending": "#00E0FF"
-                                },
-                                hole=0.4
-                            )
-                            fig_pie.update_layout(
-                                plot_bgcolor='rgba(0,0,0,0)',
-                                paper_bgcolor='rgba(0,0,0,0)',
-                                font_color='#FFFFFF',
-                                title_font_color='#00E0FF',
-                                showlegend=True,
-                                legend=dict(font=dict(color='#FFFFFF')),
-                                height=350
-                            )
-                            fig_pie.update_traces(textfont_color='#FFFFFF', textposition='inside')
-                            st.plotly_chart(fig_pie, use_container_width=True)
-                        
-                        with chart_col2:
-                            st.markdown("### 📊 Completion Progress")
-                            completion_rate = report.get('completion_rate', 0)
-                            
-                            # Progress bar visualization
-                            st.markdown(f"""
-                                <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); 
-                                            border-radius: 16px; padding: 24px;">
-                                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                                        <span style="color: #94A3B8;">Progress</span>
-                                        <span style="color: #00E0FF; font-weight: 600;">{completion_rate:.1f}%</span>
-                                    </div>
-                                    <div style="background-color: rgba(255, 255, 255, 0.05); border-radius: 10px; height: 30px; overflow: hidden;">
-                                        <div style="background: linear-gradient(90deg, #00D1FF, #00FFA6); 
-                                                    height: 100%; width: {completion_rate}%; 
-                                                    transition: width 0.5s ease; border-radius: 10px;"></div>
-                                    </div>
-                                    <div style="margin-top: 20px; color: #94A3B8; font-size: 0.9rem;">
-                                        <div>✅ Completed: {report.get('completed_tasks', 0)} tasks</div>
-                                        <div>🔄 In Progress: {report.get('in_progress_tasks', 0)} tasks</div>
-                                        <div>⏳ Pending: {report.get('pending_tasks', 0)} tasks</div>
-                                    </div>
-                                </div>
-                            """, unsafe_allow_html=True)
-                            
-                            # Health Score Indicator
-                            st.markdown("<br>", unsafe_allow_html=True)
-                            st.markdown("### 💚 Project Health")
-                            health_score = report.get('health_score', 0)
-                            health_status = "Excellent" if health_score >= 70 else "Good" if health_score >= 50 else "Needs Attention"
-                            health_emoji = "🟢" if health_score >= 70 else "🟡" if health_score >= 50 else "🔴"
-                            
-                            st.markdown(f"""
-                                <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); 
-                                            border-radius: 16px; padding: 20px; text-align: center;">
-                                    <div style="font-size: 3rem; margin-bottom: 10px;">{health_emoji}</div>
-                                    <div style="font-size: 1.5rem; font-weight: 600; color: {health_color}; margin-bottom: 5px;">
-                                        {health_score:.0f}/100
-                                    </div>
-                                    <div style="color: #94A3B8;">{health_status}</div>
-                                </div>
-                            """, unsafe_allow_html=True)
-                        
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        
-                        # Risks Section
-                        risks = report.get('risks', [])
-                        if risks:
-                            st.markdown("### ⚠️ Project Risks")
-                            for risk in risks:
-                                risk_severity = risk.get('severity', 'medium')
-                                risk_color = "#00E0FF" if risk_severity == "high" else "#00E0FF" if risk_severity == "medium" else "#00E0FF"
-                                st.markdown(f"""
-                                    <div style="background-color: #111729; border-left: 4px solid {risk_color}; 
-                                                border-radius: 8px; padding: 16px; margin-bottom: 12px;">
-                                        <div style="color: {risk_color}; font-weight: 600; margin-bottom: 8px;">
-                                            {risk.get('type', 'Risk').title()} - {risk_severity.title()}
-                                        </div>
-                                        <div style="color: #94A3B8;">{risk.get('description', 'N/A')}</div>
-                                    </div>
-                                """, unsafe_allow_html=True)
-                        else:
-                            st.markdown("### ⚠️ Project Risks")
-                            st.success("✅ No risks identified. Project is on track!")
-                        
-                        # Resource Allocation
-                        resource_allocation = report.get('resource_allocation', {})
-                        if resource_allocation:
-                            st.markdown("<br>", unsafe_allow_html=True)
-                            st.markdown("### 👥 Resource Allocation")
-                            
-                            if isinstance(resource_allocation, dict) and resource_allocation:
-                                # Create a bar chart for resource allocation
-                                # resource_allocation is a dict where values are dicts with "name" and "task_count"
-                                resource_df = pd.DataFrame([
-                                    {"Employee": v.get("name", k) if isinstance(v, dict) else k, "Tasks": v.get("task_count", v) if isinstance(v, dict) else v} 
-                                    for k, v in resource_allocation.items()
-                                ])
-                                
-                                fig_resource = px.bar(
-                                    resource_df,
-                                    x="Employee",
-                                    y="Tasks",
-                                    title="Tasks per Employee",
-                                    color="Tasks",
-                                    color_continuous_scale="Viridis"
-                                )
-                                fig_resource.update_layout(
-                                    plot_bgcolor='rgba(0,0,0,0)',
-                                    paper_bgcolor='rgba(0,0,0,0)',
-                                    font_color='#FFFFFF',
-                                    title_font_color='#00E0FF',
-                                    xaxis=dict(gridcolor='rgba(255,255,255,0.1)', tickangle=-45),
-                                    yaxis=dict(gridcolor='rgba(255,255,255,0.1)'),
-                                    height=350
-                                )
-                                st.plotly_chart(fig_resource, use_container_width=True)
-                        
-                        # Estimated Completion Date
-                        estimated_completion = report.get('estimated_completion_date')
-                        if estimated_completion:
-                            # Extract only the date part (YYYY-MM-DD)
-                            if isinstance(estimated_completion, str):
-                                # Handle ISO format datetime string
-                                date_only = estimated_completion.split('T')[0] if 'T' in estimated_completion else estimated_completion.split(' ')[0]
-                            else:
-                                date_only = str(estimated_completion)
-                            st.markdown("<br>", unsafe_allow_html=True)
-                            st.markdown("### 📅 Estimated Completion")
-                            st.info(f"**Estimated Completion Date:** {date_only}")
-
-# Tasks page
-def tasks_page():
-    """Tasks management page"""
-    st.title("✅ Tasks")
-    st.markdown("---")
+    st.markdown("""
+        <div class="projects-header">
+            <h1 style="margin: 0; font-size: 2.5rem;">📁 Projects & Tasks</h1>
+            <p style="margin: 0.5rem 0 0 0; opacity: 0.9;">Manage your projects and track task progress</p>
+        </div>
+    """, unsafe_allow_html=True)
     
     # Role-based access control
     user_role = st.session_state.user.get("role", "employee")
     user_email = st.session_state.user.get("email")
     
-    agents = initialize_agents()
-    task_agent = agents["task_agent"]
-    
-    # Check if we should show view after creation
-    show_view_after_create = st.session_state.get("show_tasks_view", False)
-    
-    if show_view_after_create:
-        st.session_state.show_tasks_view = False
-        st.success("✅ Task created successfully! Viewing all tasks below.")
-        st.markdown("---")
-        # Show view content immediately
-        if user_role in ["owner", "manager"]:
-            tasks = task_agent.get_tasks()
-        else:
-            # Get employee ID from email for employees
-            employees = st.session_state.data_manager.load_data("employees") or []
-            employee = next((e for e in employees if e.get("email") == user_email), None)
-            if employee:
-                employee_id = employee.get("id")
-                tasks = task_agent.get_tasks({"assigned_to": employee_id})
-            else:
-                tasks = []
-        if tasks:
-            # Add index column
-            tasks_with_index = []
-            for idx, task in enumerate(tasks, start=1):
-                task_copy = task.copy()
-                task_copy['#'] = idx
-                # Move index to first position
-                tasks_with_index.append({'#': idx, **{k: v for k, v in task_copy.items() if k != '#'}})
-            df = pd.DataFrame(tasks_with_index)
-            # Reorder columns to put # first
-            cols = ['#'] + [col for col in df.columns if col != '#']
-            df = df[cols]
-            st.dataframe(df, use_container_width=True)
-        st.markdown("---")
-        st.markdown("### Or use tabs below to navigate")
+    if USE_API_BACKEND:
+        data_manager = None
+        api_client = st.session_state.api_client
+        try:
+            projects_data = api_client.get_projects(
+                user_id=st.session_state.user.get("id"),
+                user_role=user_role
+            )
+            projects = projects_data if isinstance(projects_data, list) else projects_data.get("projects", [])
+            all_tasks = []
+            for project in projects:
+                all_tasks.extend(project.get("tasks", []))
+        except:
+            projects = []
+            all_tasks = []
+    else:
+        data_manager = st.session_state.data_manager
+        projects = data_manager.load_data("projects") or []
+        all_tasks = data_manager.load_data("tasks") or []
     
     # Role-based tabs
     if user_role in ["owner", "manager"]:
-        tab1, tab2 = st.tabs(["View Tasks", "Create Task"])
-        tab3 = None
+        tab1, tab2, tab3 = st.tabs(["📊 Projects", "➕ Create Project", "📈 Reports"])
     else:
-        # Employees don't use tabs - show tasks directly
-        tab1 = None
+        tab1, tab3 = st.tabs(["📊 My Projects", "📈 Reports"])
         tab2 = None
-        tab3 = None
     
-    # For employees, show tasks directly without tabs
-    if user_role == "employee":
-        # Employees only see their own tasks - need to get employee ID first
-        employees = st.session_state.data_manager.load_data("employees") or []
-        employee = next((e for e in employees if e.get("email") == user_email), None)
-        if employee:
-            employee_id = employee.get("id")
-            tasks = task_agent.get_tasks({"assigned_to": employee_id})
-            st.info("👤 Showing only your assigned tasks")
+    with tab1:
+        # Get employee ID for filtering
+        if not USE_API_BACKEND:
+            employees = data_manager.load_data("employees") or []
+            current_employee = None
+            if user_email:
+                current_employee = next((e for e in employees if e.get("email") == user_email), None)
+            employee_id = current_employee.get("id") if current_employee else None
+            
+            # Filter projects for employees
+            if user_role == "employee" and employee_id:
+                employee_project_ids = set()
+                for task in all_tasks:
+                    if str(task.get("assigned_to", "")) == str(employee_id):
+                        project_id = task.get("project_id")
+                        if project_id:
+                            employee_project_ids.add(str(project_id))
+                projects = [p for p in projects if str(p.get("id", "")) in employee_project_ids]
         else:
-            st.error("❌ Employee record not found.")
-            tasks = []
+            employee_id = st.session_state.user.get("id")
         
-        if tasks:
-            # Handle status update forms first
-            for task in tasks:
-                task_id = task.get('id')
-                if st.session_state.get(f"updating_status_{task_id}", False):
-                    with st.expander(f"✏️ Update Status: {task.get('title', 'Untitled')}", expanded=True):
-                        with st.form(f"update_status_form_{task_id}"):
-                            current_status = task.get('status', 'pending')
-                            status_options = ["pending", "in_progress", "completed"]
-                            current_index = status_options.index(current_status) if current_status in status_options else 0
-                            
-                            new_status = st.selectbox("Status", status_options, index=current_index, key=f"status_select_{task_id}")
-                            
-                            col_save, col_cancel = st.columns(2)
-                            with col_save:
-                                if st.form_submit_button("💾 Update Status"):
-                                    # Update task status using API if available
-                                    old_status = task.get('status', 'pending')
-                                    update_data = {"status": new_status}
-                                    if new_status == "completed":
-                                        update_data["completed_at"] = datetime.now().isoformat()
-                                    
-                                    if hasattr(task_agent.data_manager, 'update_task'):
-                                        updated_task = task_agent.data_manager.update_task(task_id, update_data)
-                                    else:
-                                        # Fallback to old method
-                                        all_tasks = task_agent.get_tasks()
-                                        updated_task = None
-                                        for t in all_tasks:
-                                            if str(t.get('id')) == str(task_id):
-                                                t['status'] = new_status
-                                                t['updated_at'] = datetime.now().isoformat()
-                                                if new_status == "completed" and not t.get('completed_at'):
-                                                    t['completed_at'] = datetime.now().isoformat()
-                                                updated_task = t
-                                                break
-                                        task_agent.data_manager.save_data("tasks", all_tasks)
-                                    
-                                    # Send notifications
-                                    notification_agent = agents.get("notification_agent")
-                                    if notification_agent and updated_task:
-                                        # Get employee name for notification
-                                        employees_list = st.session_state.data_manager.load_data("employees") or []
-                                        employee = next((e for e in employees_list if e.get("id") == employee_id), None)
-                                        employee_name = employee.get('name', 'Employee') if employee else 'Employee'
-                                        
-                                        # Notify the employee (confirmation)
-                                        notification_agent.send_notification(
-                                            recipient=employee_id,
-                                            title="Task Status Updated",
-                                            message=f"Your task '{updated_task.get('title', 'Untitled')}' status has been updated from '{old_status}' to '{new_status}'.",
-                                            notification_type="task_status_update",
-                                            priority="normal"
-                                        )
-                                        
-                                        # Notify managers/owners about the status change
-                                        managers = [e for e in employees_list if e.get("role") in ["manager", "owner"]]
-                                        for manager in managers:
-                                            manager_id = manager.get("id")
-                                            notification_agent.send_notification(
-                                                recipient=manager_id,
-                                                title=f"Task Status Changed by {employee_name}",
-                                                message=f"Employee {employee_name} updated task '{updated_task.get('title', 'Untitled')}' status from '{old_status}' to '{new_status}'.",
-                                                notification_type="task_status_update",
-                                                priority="normal"
-                                            )
-                                    
-                                    st.session_state[f"updating_status_{task_id}"] = False
-                                    st.success(f"✅ Task status updated to '{new_status}'! Notifications sent.")
-                                    st.rerun()
-                            with col_cancel:
-                                if st.form_submit_button("❌ Cancel"):
-                                    st.session_state[f"updating_status_{task_id}"] = False
-                                    st.rerun()
-            
-            # Table header - with Actions column for status update
-            header_cols = st.columns([3, 1, 1, 1, 1.5])
-            with header_cols[0]:
-                st.markdown("**Title**")
-            with header_cols[1]:
-                st.markdown("**Status**")
-            with header_cols[2]:
-                st.markdown("**Priority**")
-            with header_cols[3]:
-                st.markdown("**Due Date**")
-            with header_cols[4]:
-                st.markdown("**Action**")
-            
-            st.markdown("---")
-            
-            # Table rows - with Update Status button
-            for idx, task in enumerate(tasks):
-                task_id = task.get('id')
-                title = task.get('title', 'Untitled')
-                status = task.get('status', 'N/A')
-                priority = task.get('priority', 'N/A')
-                due_date = task.get('due_date', 'N/A')[:10] if task.get('due_date') else 'N/A'
-                
-                row_cols = st.columns([3, 1, 1, 1, 1.5])
-                with row_cols[0]:
-                    st.write(f"**{title}**")
-                with row_cols[1]:
-                    # Show status with color indicator
-                    status_emoji = {"pending": "⏳", "in_progress": "🔄", "completed": "✅"}
-                    emoji = status_emoji.get(status, "📋")
-                    st.write(f"{emoji} {status}")
-                with row_cols[2]:
-                    st.write(priority)
-                with row_cols[3]:
-                    st.write(due_date)
-                with row_cols[4]:
-                    if st.button("✏️ Update Status", key=f"employee_update_status_btn_{idx}_{task_id}", use_container_width=True):
-                        st.session_state[f"updating_status_{task_id}"] = True
-                        st.rerun()
+        if not projects:
+            st.markdown("""
+                <div style="text-align: center; padding: 3rem; background: #1A1A1A; border-radius: 16px; border: 2px dashed rgba(255,255,255,0.1);">
+                    <h2 style="color: #CCCCCC;">📭 No Projects Found</h2>
+                    <p style="color: #64748B;">Get started by creating your first project!</p>
+                </div>
+            """, unsafe_allow_html=True)
         else:
-            st.info("No tasks found")
-    else:
-        # Managers and owners use tabs
-        with tab1:
-            # Managers and owners see all tasks
-            tasks = task_agent.get_tasks()
+            # Projects overview stats
+            total_tasks = sum(len([t for t in all_tasks if str(t.get("project_id", "")) == str(p.get("id", ""))]) for p in projects)
+            completed_tasks = sum(len([t for t in all_tasks if str(t.get("project_id", "")) == str(p.get("id", "")) and t.get("status") == "completed"]) for p in projects)
+            active_projects = len([p for p in projects if p.get("status") in ["active", "in_progress"]])
             
-            # Debug: Check if tasks are loaded
-            if not tasks:
-                st.warning(f"⚠️ Debug: task_agent.get_tasks() returned {len(tasks) if tasks else 0} tasks. Data manager loaded: {len(st.session_state.data_manager.load_data('tasks') or [])} tasks from file.")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Projects", len(projects))
+            with col2:
+                st.metric("Active Projects", active_projects)
+            with col3:
+                st.metric("Total Tasks", total_tasks)
+            with col4:
+                st.metric("Completed Tasks", completed_tasks)
             
-            if tasks:
-                # Load employees for name lookup
-                employees = st.session_state.data_manager.load_data("employees") or []
-                employee_lookup = {e.get("id"): e.get("name", "Unknown") for e in employees}
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # Modern project cards
+            for project in projects:
+                project_id = str(project.get("id", ""))
+                project_name = project.get("name", "Unnamed Project")
+                project_status = project.get("status", "unknown")
+                project_description = project.get("description", "")
                 
-                # Load projects for name lookup
-                projects = st.session_state.data_manager.load_data("projects") or []
-                project_lookup = {p.get("id"): p.get("name", "Unknown") for p in projects}
+                # Get tasks for this project
+                project_tasks = [t for t in all_tasks if str(t.get("project_id", "")) == project_id]
                 
-                # Find which task is being edited (only one at a time)
-                editing_task_id = None
-                editing_task = None
-                for task in tasks:
-                    task_id = task.get('id')
-                    if st.session_state.get(f"editing_task_{task_id}", False):
-                        editing_task_id = task_id
-                        editing_task = task
-                        break  # Only allow one task to be edited at a time
+                # Calculate project progress
+                total_project_tasks = len(project_tasks)
+                completed_project_tasks = len([t for t in project_tasks if t.get("status") == "completed"])
+                progress = (completed_project_tasks / total_project_tasks * 100) if total_project_tasks > 0 else 0
                 
-                # Handle edit form - only show one at a time
-                if editing_task and editing_task_id:
-                    with st.expander(f"✏️ Editing: {editing_task.get('title', 'Untitled')}", expanded=True):
-                        with st.form(f"edit_task_form_{editing_task_id}"):
-                            edit_title = st.text_input("Task Title", value=editing_task.get('title', ''), key=f"edit_task_title_{editing_task_id}")
-                            edit_description = st.text_area("Description", value=editing_task.get('description', ''), key=f"edit_task_desc_{editing_task_id}")
-                            edit_priority = st.selectbox("Priority", ["low", "medium", "high"],
-                                                        index=["low", "medium", "high"].index(editing_task.get('priority', 'medium')),
-                                                        key=f"edit_task_priority_{editing_task_id}")
-                            edit_status = st.selectbox("Status", ["pending", "in_progress", "completed"],
-                                                      index=["pending", "in_progress", "completed"].index(editing_task.get('status', 'pending')),
-                                                      key=f"edit_task_status_{editing_task_id}")
-                            
-                            # Managers/owners can edit all fields
-                            edit_due_date = st.date_input("Due Date",
-                                                         value=datetime.fromisoformat(editing_task.get('due_date')) if editing_task.get('due_date') else None,
-                                                         key=f"edit_task_due_{editing_task_id}")
-                            current_assigned = editing_task.get('assigned_to', '')
-                            # Show names instead of IDs in dropdown
-                            assigned_options = {e.get('name'): e.get("id") for e in employees}
-                            selected_assigned_name = st.selectbox("Assign To", ["-- Choose employee --"] + list(assigned_options.keys()),
-                                                        index=0 if not current_assigned else (list(assigned_options.values()).index(current_assigned) + 1 if current_assigned in assigned_options.values() else 0),
-                                                        key=f"edit_task_assigned_{editing_task_id}")
-                            edit_assigned = assigned_options.get(selected_assigned_name) if selected_assigned_name and selected_assigned_name != "-- Choose employee --" else ""
-                            
-                            col_save, col_cancel = st.columns(2)
-                            with col_save:
-                                if st.form_submit_button("💾 Save Changes", key=f"save_task_btn_{editing_task_id}"):
-                                    # Find the task in the list and update it
-                                    for task in tasks:
-                                        if str(task.get('id')) == str(editing_task_id):
-                                            # Role-based update restrictions
-                                            if user_role in ["owner", "manager"]:
-                                                # Managers/owners can update all fields
-                                                task['title'] = edit_title
-                                                task['description'] = edit_description
-                                                task['priority'] = edit_priority
-                                                task['status'] = edit_status
-                                                task['due_date'] = edit_due_date.isoformat() if edit_due_date else None
-                                                task['assigned_to'] = edit_assigned if edit_assigned else None
-                                            else:
-                                                # Employees can only update status
-                                                if task.get("assigned_to") == user_email:
-                                                    task['status'] = edit_status
-                                                else:
-                                                    st.error("❌ You can only update tasks assigned to you.")
-                                                    st.rerun()
-                                                    return
-                                            
-                                    # Use API method if available
-                                    update_data = {}
-                                    if user_role in ["owner", "manager"]:
-                                        update_data = {
-                                            "title": edit_title,
-                                            "description": edit_description,
-                                            "status": edit_status,
-                                            "priority": edit_priority,
-                                            "due_date": edit_due_date.isoformat() if edit_due_date else None,
-                                            "assigned_to": edit_assigned if edit_assigned else None
-                                        }
-                                    else:
-                                        # Employees can only update status
-                                        update_data = {
-                                            "status": edit_status
-                                        }
-                                    
-                                    # If marking as completed, add completed_at timestamp
-                                    if edit_status == "completed":
-                                        update_data["completed_at"] = datetime.now().isoformat()
-                                    
-                                    if hasattr(task_agent.data_manager, 'update_task'):
-                                        task_agent.data_manager.update_task(editing_task_id, update_data)
-                                    else:
-                                        # Fallback to old method
-                                        for task in tasks:
-                                            if str(task.get("id")) == str(editing_task_id):
-                                                task.update(update_data)
-                                                task['updated_at'] = datetime.now().isoformat()
-                                                break
-                                        # Use API method if available - tasks are already updated via task_agent methods
-                                        if not hasattr(task_agent.data_manager, 'update_task'):
-                                            task_agent.data_manager.save_data("tasks", tasks)
-                                    st.session_state[f"editing_task_{editing_task_id}"] = False
-                                    st.success("Task updated!")
-                                    st.rerun()
-                            with col_cancel:
-                                if st.form_submit_button("❌ Cancel", key=f"cancel_task_btn_{editing_task_id}"):
-                                    st.session_state[f"editing_task_{editing_task_id}"] = False
-                                    st.rerun()
+                # Status colors
+                status_colors = {
+                    "active": "#10b981",
+                    "in_progress": "#FF6B35",
+                    "completed": "#6b7280",
+                    "on_hold": "#f59e0b"
+                }
+                status_color = status_colors.get(project_status, "#64748B")
+                
+                # Project card
+                st.markdown(f"""
+                    <div class="project-card">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                            <div>
+                                <h2 style="margin: 0; color: #FF6B35; font-size: 1.5rem;">📁 {project_name}</h2>
+                                <span class="status-badge status-{project_status}" style="background: {status_color}; margin-top: 0.5rem;">
+                                    {project_status.replace('_', ' ').title()}
+                                </span>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 0.9rem; color: #CCCCCC;">Progress</div>
+                                <div style="font-size: 1.5rem; font-weight: bold; color: #FF6B35;">{progress:.0f}%</div>
+                            </div>
+                        </div>
+                        <p style="color: #CCCCCC; margin: 0.5rem 0;">{project_description or 'No description'}</p>
+                """, unsafe_allow_html=True)
+                
+                # Project metadata
+                col_meta1, col_meta2, col_meta3 = st.columns(3)
+                with col_meta1:
+                    if project.get("deadline"):
+                        try:
+                            deadline = datetime.fromisoformat(project["deadline"]) if isinstance(project["deadline"], str) else project["deadline"]
+                            days_left = (deadline.date() - datetime.now().date()).days
+                            st.caption(f"📅 Deadline: {deadline.strftime('%Y-%m-%d')}")
+                            if days_left >= 0:
+                                st.caption(f"⏰ {days_left} days remaining")
+                            else:
+                                st.caption(f"⚠️ {abs(days_left)} days overdue")
+                        except:
+                            st.caption(f"📅 Deadline: {project.get('deadline')}")
+                
+                with col_meta2:
+                    st.caption(f"📋 {total_project_tasks} tasks")
+                
+                with col_meta3:
+                    st.caption(f"✅ {completed_project_tasks} completed")
+                
+                # Progress bar
+                st.progress(progress / 100)
+                
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+                # Tasks section
+                if project_tasks:
+                    st.markdown("#### 📝 Tasks")
                     
-                    st.markdown("---")
+                    # Kanban-style task view
+                    task_col1, task_col2, task_col3 = st.columns(3)
+                    
+                    pending_tasks = [t for t in project_tasks if t.get("status") == "pending"]
+                    in_progress_tasks = [t for t in project_tasks if t.get("status") == "in_progress"]
+                    completed_tasks_list = [t for t in project_tasks if t.get("status") == "completed"]
+                    
+                    # Helper function to render task card
+                    def render_task_card(task, column_name):
+                        task_id = str(task.get("id", ""))
+                        task_title = task.get("title", "Untitled Task")
+                        task_priority = task.get("priority", "medium")
+                        task_due_date = task.get("due_date", "")
+                        task_description = task.get("description", "")
+                        
+                        priority_colors = {"high": "#ef4444", "medium": "#f59e0b", "low": "#10b981"}
+                        priority_color = priority_colors.get(task_priority, "#64748B")
+                        
+                        with st.container():
+                            st.markdown(f"""
+                                <div class="task-card" style="margin-bottom: 1rem;">
+                                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                                        <h4 style="margin: 0; color: #FFFFFF;">{task_title}</h4>
+                                        <span style="background: {priority_color}; color: white; padding: 0.2rem 0.5rem; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">
+                                            {task_priority.upper()}
+                                        </span>
+                                    </div>
+                                    {f'<p style="color: #CCCCCC; font-size: 0.85rem; margin: 0.5rem 0;">{task_description[:100]}{"..." if len(task_description) > 100 else ""}</p>' if task_description else ''}
+                                    {f'<div style="color: #64748B; font-size: 0.75rem; margin-top: 0.5rem;">📅 {task_due_date}</div>' if task_due_date else ''}
+                                </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Update button for employees
+                            if user_role == "employee" and str(task.get("assigned_to", "")) == str(employee_id):
+                                if st.button("✏️ Update", key=f"update_{task_id}_{column_name}", use_container_width=True):
+                                    st.session_state[f"updating_{task_id}"] = True
+                                    st.rerun()
+                            
+                            # Update form
+                            if st.session_state.get(f"updating_{task_id}", False):
+                                with st.form(f"update_form_{task_id}"):
+                                    new_status = st.selectbox("Status", ["pending", "in_progress", "completed"], 
+                                                              index=["pending", "in_progress", "completed"].index(task.get("status", "pending")) 
+                                                              if task.get("status") in ["pending", "in_progress", "completed"] else 0,
+                                                              key=f"status_{task_id}")
+                                    new_priority = st.selectbox("Priority", ["low", "medium", "high"],
+                                                               index=["low", "medium", "high"].index(task_priority) 
+                                                               if task_priority in ["low", "medium", "high"] else 1,
+                                                               key=f"priority_{task_id}")
+                                    
+                                    col_save, col_cancel = st.columns(2)
+                                    with col_save:
+                                        if st.form_submit_button("💾 Save"):
+                                            try:
+                                                if not USE_API_BACKEND:
+                                                    for t in all_tasks:
+                                                        if str(t.get("id")) == task_id:
+                                                            t["status"] = new_status
+                                                            t["priority"] = new_priority
+                                                            t["updated_at"] = datetime.now().isoformat()
+                                                            data_manager.save_data("tasks", all_tasks)
+                                                            
+                                                            # Publish event
+                                                            event_bus = st.session_state.get("event_bus")
+                                                            if event_bus:
+                                                                from components.managers.event_bus import EventType
+                                                                event_bus.publish_event(EventType.TASK_UPDATED, {"task": t}, source="app.py")
+                                                                if new_status == "completed":
+                                                                    event_bus.publish_event(EventType.TASK_COMPLETED, {"task": t}, source="app.py")
+                                                else:
+                                                    st.session_state.api_client.update_task(task_id, {"status": new_status, "priority": new_priority})
+                                                
+                                                st.success("✅ Updated!")
+                                                st.session_state[f"updating_{task_id}"] = False
+                                                st.rerun()
+                                            except Exception as e:
+                                                st.error(f"Error: {str(e)}")
+                                    with col_cancel:
+                                        if st.form_submit_button("❌ Cancel"):
+                                            st.session_state[f"updating_{task_id}"] = False
+                                            st.rerun()
+                    
+                    with task_col1:
+                        st.markdown(f"<h3 style='color: #f59e0b;'>⏳ Pending ({len(pending_tasks)})</h3>", unsafe_allow_html=True)
+                        if pending_tasks:
+                            for task in pending_tasks:
+                                render_task_card(task, "pending")
+                        else:
+                            st.info("No pending tasks")
+                    
+                    with task_col2:
+                        st.markdown(f"<h3 style='color: #3b82f6;'>🔄 In Progress ({len(in_progress_tasks)})</h3>", unsafe_allow_html=True)
+                        if in_progress_tasks:
+                            for task in in_progress_tasks:
+                                render_task_card(task, "in_progress")
+                        else:
+                            st.info("No tasks in progress")
+                    
+                    with task_col3:
+                        st.markdown(f"<h3 style='color: #10b981;'>✅ Completed ({len(completed_tasks_list)})</h3>", unsafe_allow_html=True)
+                        if completed_tasks_list:
+                            for task in completed_tasks_list:
+                                render_task_card(task, "completed")
+                        else:
+                            st.info("No completed tasks")
+                else:
+                    st.info("📝 No tasks assigned to this project yet.")
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Create Project tab (for managers/owners)
+    if tab2:
+        with tab2:
+            st.markdown("""
+                <div style="background: linear-gradient(135deg, #FF6B35 0%, #FF8C42 100%); padding: 2rem; border-radius: 16px; margin-bottom: 2rem;">
+                    <h2 style="color: white; margin: 0;">➕ Create New Project</h2>
+                    <p style="color: rgba(255,255,255,0.9); margin: 0.5rem 0 0 0;">Start a new project and assign tasks to your team</p>
+                </div>
+            """, unsafe_allow_html=True)
             
-                # Table header
-                header_cols = st.columns([0.5, 2, 1.5, 1, 1, 1.5, 1.5, 1.5])
-                with header_cols[0]:
-                    st.markdown("**#**")
-                with header_cols[1]:
-                    st.markdown("**Title**")
-                with header_cols[2]:
-                    st.markdown("**Project**")
-                with header_cols[3]:
-                    st.markdown("**Status**")
-                with header_cols[4]:
-                    st.markdown("**Priority**")
-                with header_cols[5]:
-                    st.markdown("**Due Date**")
-                with header_cols[6]:
-                    st.markdown("**Assigned To**")
-                with header_cols[7]:
-                    st.markdown("**Actions**")
+            with st.form("create_project_form"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    project_name = st.text_input("Project Name *", placeholder="e.g., Website Redesign", help="Enter a descriptive project name")
+                    project_status = st.selectbox("Initial Status", ["active", "in_progress", "on_hold"], 
+                                                   help="Set the starting status for this project")
+                with col2:
+                    project_deadline = st.date_input("Deadline", value=datetime.now().date() + timedelta(days=30),
+                                                     help="Set the project deadline")
+                    if not USE_API_BACKEND:
+                        employees_list = data_manager.load_data("employees") or []
+                        project_manager = st.selectbox("Project Manager", 
+                                                      [e.get("email") for e in employees_list if e.get("role") in ["owner", "manager"]],
+                                                      help="Select the manager responsible for this project")
+                
+                project_description = st.text_area("Description", placeholder="Describe the project goals, scope, and key deliverables...", 
+                                                   height=100, help="Provide a detailed description of the project")
                 
                 st.markdown("---")
                 
-                # Table rows with action buttons
-                for idx, task in enumerate(tasks):
-                    task_id = task.get('id')
-                    title = task.get('title', 'Untitled')
-                    status = task.get('status', 'N/A')
-                    priority = task.get('priority', 'N/A')
-                    due_date = task.get('due_date', 'N/A')[:10] if task.get('due_date') else 'N/A'
-                    assigned_to_id = task.get('assigned_to', '')
-                    # Show employee name instead of ID
-                    assigned_to = employee_lookup.get(assigned_to_id, assigned_to_id if assigned_to_id else 'Unassigned')
-                    
-                    # Get project name
-                    project_id = task.get('project_id')
-                    project_name = project_lookup.get(str(project_id), 'No Project') if project_id else 'No Project'
-                    
-                    row_cols = st.columns([0.5, 2, 1.5, 1, 1, 1.5, 1.5, 1.5])
-                    with row_cols[0]:
-                        st.write(f"**{idx + 1}**")
-                    with row_cols[1]:
-                        st.write(f"**{title}**")
-                    with row_cols[2]:
-                        st.write(project_name)
-                    with row_cols[3]:
-                        st.write(status)
-                    with row_cols[4]:
-                        st.write(priority)
-                    with row_cols[5]:
-                        st.write(due_date)
-                    with row_cols[6]:
-                        st.write(assigned_to)
-                    with row_cols[7]:
-                        if user_role in ["owner", "manager"]:
-                            # Managers and owners can edit/delete
-                            btn_col1, btn_col2 = st.columns(2)
-                            with btn_col1:
-                                if st.button("✏️ Edit", key=f"view_tasks_edit_{idx}_{task_id}", use_container_width=True):
-                                    # Clear any other editing states first
-                                    for t in tasks:
-                                        other_task_id = t.get('id')
-                                        if other_task_id != task_id:
-                                            st.session_state[f"editing_task_{other_task_id}"] = False
-                                    # Set this task as editing
-                                    st.session_state[f"editing_task_{task_id}"] = True
-                                    st.rerun()
-                            with btn_col2:
-                                if st.button("🗑️ Del", key=f"view_tasks_delete_{idx}_{task_id}", use_container_width=True, type="secondary"):
-                                    if task_agent.delete_task(task_id):
-                                        st.success("Task deleted!")
-                                    st.rerun()
-            else:
-                st.info("No tasks found")
-    
-    if tab2:
-        with tab2:
-            # Only managers and owners can create tasks
-            if user_role not in ["owner", "manager"]:
-                st.warning("⚠️ Only managers and owners can create tasks.")
-            else:
-                with st.form("create_task"):
-                    title = st.text_input("Task Title *")
-                    description = st.text_area("Description")
-                    priority = st.selectbox("Priority", ["low", "medium", "high"], key="create_task_priority")
-                    status = st.selectbox("Status", ["pending", "in_progress", "completed"], key="create_task_status")
-                    due_date = st.date_input("Due Date")
-                    
-                    # Add project selection
-                    projects = st.session_state.data_manager.load_data("projects") or []
-                    project_options = {f"{p.get('name')} ({p.get('id')})": p.get("id") for p in projects}
-                    selected_project_name = st.selectbox("Project (Optional)", ["-- Choose from projects --"] + list(project_options.keys()), key="create_task_project", help="Link this task to a project")
-                    project_id = project_options.get(selected_project_name) if selected_project_name and selected_project_name != "-- Choose from projects --" else None
-                    
-                    employees = st.session_state.data_manager.load_data("employees") or []
-                    # Show names instead of IDs in dropdown
-                    assigned_options = {e.get('name', f"Employee {e.get('id')}"): e.get("id") for e in employees}
-                    selected_assigned_name = st.selectbox("Assign To", ["-- Choose employee --"] + list(assigned_options.keys()), key="create_task_assigned")
-                    assigned_to = assigned_options.get(selected_assigned_name) if selected_assigned_name and selected_assigned_name != "-- Choose employee --" else ""
-                    
-                    if st.form_submit_button("Create Task"):
-                        if title:
-                            result = task_agent.create_task({
-                                "title": title,
-                                "description": description,
-                                "priority": priority,
-                                "due_date": due_date.isoformat() if due_date else None,
-                                "assigned_to": assigned_to if assigned_to else None,
-                                "project_id": project_id
-                            })
-                            if result.get("success"):
-                                st.session_state.show_tasks_view = True
-                                st.rerun()
-                            else:
-                                st.error(result.get("error"))
-    
-# Employees page
-def employees_page():
-    """Employees management page"""
-    st.title("👥 Employees")
-    st.markdown("---")
-    
-    # Role-based access control - Employees cannot access
-    user_role = st.session_state.user.get("role", "employee")
-    if user_role == "employee":
-        st.error("❌ Access Denied: You don't have permission to access this page.")
-        st.info("💡 Employees cannot view or manage the employee list.")
-        return
-    
-    data_manager = st.session_state.data_manager
-    employees = data_manager.load_data("employees") or []
-    
-    # Check if we should show view after creation
-    show_view_after_create = st.session_state.get("show_employees_view", False)
-    
-    if show_view_after_create:
-        st.session_state.show_employees_view = False
-        st.success("✅ Employee created successfully! Viewing all employees below.")
-        st.markdown("---")
-        # Show view content immediately
-        employees = data_manager.load_data("employees") or []
-        if employees:
-            # Add index column
-            employees_with_index = []
-            for idx, employee in enumerate(employees, start=1):
-                employee_copy = employee.copy()
-                employee_copy['#'] = idx
-                # Move index to first position
-                employees_with_index.append({'#': idx, **{k: v for k, v in employee_copy.items() if k != '#'}})
-            df = pd.DataFrame(employees_with_index)
-            # Reorder columns to put # first
-            cols = ['#'] + [col for col in df.columns if col != '#']
-            df = df[cols]
-            st.dataframe(df, use_container_width=True)
-        st.markdown("---")
-        st.markdown("### Or use tabs below to navigate")
-    
-    tab1, tab2 = st.tabs(["View Employees", "Create Employee"])
-    
-    with tab1:
-        if employees:
-            for employee in employees:
-                with st.container():
-                    col1, col2, col3 = st.columns([3, 1, 1])
-                    with col1:
-                        st.markdown(f"### {employee.get('name', 'Unknown')}")
-                        st.write(f"**Email:** {employee.get('email', 'N/A')} | **Position:** {employee.get('position', 'N/A')}")
-                    
-                    with col2:
-                        if st.button("✏️ Edit", key=f"edit_employee_{employee.get('id')}", use_container_width=True):
-                            st.session_state[f"editing_employee_{employee.get('id')}"] = True
-                            st.rerun()
-                    
-                    with col3:
-                        if st.button("🗑️ Del", key=f"delete_employee_{employee.get('id')}", use_container_width=True, type="secondary"):
-                            if hasattr(data_manager, 'delete_employee'):
-                                data_manager.delete_employee(employee.get('id'))
-                            else:
-                                employees = [e for e in employees if e.get("id") != employee.get("id")]
-                                data_manager.save_data("employees", employees)
-                            st.success("Employee deleted!")
-                            st.rerun()
-        
-                    # Edit form
-                    if st.session_state.get(f"editing_employee_{employee.get('id')}", False):
-                        with st.form(f"edit_employee_form_{employee.get('id')}"):
-                            edit_name = st.text_input("Name", value=employee.get('name', ''))
-                            edit_email = st.text_input("Email", value=employee.get('email', ''))
-                            edit_position = st.text_input("Position", value=employee.get('position', ''))
-                            
-                            col_save, col_cancel = st.columns(2)
-                            with col_save:
-                                if st.form_submit_button("💾 Save Changes"):
-                                    # Use API method if available
-                                    if hasattr(data_manager, 'update_employee'):
-                                        data_manager.update_employee(employee.get('id'), {
-                                            "name": edit_name,
-                                            "email": edit_email,
-                                            "position": edit_position
-                                        })
-                                    else:
-                                        employee['name'] = edit_name
-                                        employee['email'] = edit_email
-                                        employee['position'] = edit_position
-                                        employee['updated_at'] = datetime.now().isoformat()
-                                        data_manager.save_data("employees", employees)
-                                    st.session_state[f"editing_employee_{employee.get('id')}"] = False
-                                    st.success("Employee updated!")
-                                    st.rerun()
-                            with col_cancel:
-                                if st.form_submit_button("❌ Cancel"):
-                                    st.session_state[f"editing_employee_{employee.get('id')}"] = False
-                                    st.rerun()
-                    
-                    st.markdown("---")
-        else:
-            st.info("No employees found")
-    
-    if tab2:
-        with tab2:
-            # Only managers and owners can create employees
-            if user_role not in ["owner", "manager"]:
-                st.warning("⚠️ Only managers and owners can create employees.")
-            else:
-                with st.form("create_employee"):
-                    name = st.text_input("Name *")
-                    email = st.text_input("Email *")
-                    position = st.text_input("Position")
-                    
-                    if st.form_submit_button("Create Employee"):
-                        if name and email:
-                            # Use API method if available
-                            if hasattr(data_manager, 'create_employee'):
-                                new_employee = data_manager.create_employee({
-                                    "name": name,
-                                    "email": email,
-                                    "position": position,
-                                    "status": "active"
-                                })
-                            else:
-                                new_employee = {
-                                    "id": str(len(employees) + 1),
-                                    "name": name,
-                                    "email": email,
-                                    "position": position,
+                col_submit, col_clear = st.columns([1, 4])
+                with col_submit:
+                    submit = st.form_submit_button("🚀 Create Project", use_container_width=True, type="primary")
+                
+                if submit:
+                    if project_name:
+                        try:
+                            if not USE_API_BACKEND:
+                                new_project = {
+                                    "id": str(len(projects) + 1),
+                                    "name": project_name,
+                                    "description": project_description,
+                                    "status": project_status,
+                                    "deadline": project_deadline.isoformat(),
+                                    "manager": project_manager if not USE_API_BACKEND else None,
                                     "created_at": datetime.now().isoformat(),
                                     "updated_at": datetime.now().isoformat()
                                 }
-                                employees.append(new_employee)
-                                data_manager.save_data("employees", employees)
-                            st.session_state.show_employees_view = True
-                            st.rerun()
-
-# Performance page
-def performance_page():
-    """Performance evaluation page"""
-    st.title("📈 Performance")
-    st.markdown("---")
-    
-    # Role-based access control
-    user_role = st.session_state.user.get("role", "employee")
-    user_email = st.session_state.user.get("email")
-    
-    agents = initialize_agents()
-    performance_agent = agents["performance_agent"]
-    
-    employees = st.session_state.data_manager.load_data("employees") or []
-    
-    # Role-based employee selection
-    employee_id = None
-    selected_employee = None
-    
-    if user_role == "employee":
-        # Employees can only view their own performance
-        employee = next((e for e in employees if e.get("email") == user_email), None)
-        if employee:
-            selected_employee = employee.get('name')
-            employee_id = employee.get('id')
-            st.info("👤 Viewing your own performance")
-        else:
-            st.error("❌ Employee record not found.")
-            return
-    else:
-        # Managers and owners can select any employee
-        selected_employee = st.selectbox("Select Employee", ["-- Choose employee --"] + [e.get('name') for e in employees], key="performance_employee_select")
-        
-        # Get employee ID from selected name
-        if selected_employee and selected_employee != "-- Choose employee --":
-            employee = next((e for e in employees if e.get('name') == selected_employee), None)
-            if employee:
-                employee_id = employee.get('id')
-    
-    if employee_id:
-        
-        # Role-based evaluation button
-        if user_role == "employee":
-            # Employees can view but not evaluate
-            st.info("💡 Performance evaluation is done by managers. You can view your performance history below and add your self-assessment.")
-            
-            # Automatically load and display performance data for employees
-            evaluation = performance_agent.evaluate_employee(employee_id, save=False)
-            
-            # Self-Assessment Section for Employees
-            st.markdown("---")
-            st.subheader("📝 Self-Assessment / Self Review")
-            st.write("Evaluate your own performance and add remarks supporting your achievements.")
-            
-            with st.expander("➕ Add Self-Assessment", expanded=False):
-                with st.form("self_assessment_form"):
-                    assessment_period = st.selectbox("Assessment Period", 
-                        ["Current Month", "Last Month", "Last Quarter", "Last 6 Months", "This Year"],
-                        key="self_assessment_period")
-                    
-                    strengths = st.text_area("Your Strengths & Achievements *", 
-                        placeholder="Describe your key strengths, achievements, and what you've done well...",
-                        help="Highlight your accomplishments and areas where you excel")
-                    
-                    areas_for_improvement = st.text_area("Areas for Improvement", 
-                        placeholder="What areas would you like to improve? What challenges are you facing?",
-                        help="Identify areas where you want to grow or need support")
-                    
-                    goals_progress = st.text_area("Goals & Progress Notes", 
-                        placeholder="How are you progressing on your goals? Any milestones reached?",
-                        help="Share updates on your goal progress and milestones")
-                    
-                    additional_remarks = st.text_area("Additional Remarks", 
-                        placeholder="Any other comments, feedback, or insights about your performance...",
-                        help="Add any additional thoughts or context about your performance")
-                    
-                    if st.form_submit_button("💾 Submit Self-Assessment"):
-                        if strengths and strengths.strip():
-                            # Save self-assessment
-                            self_assessments = st.session_state.data_manager.load_data("self_assessments") or []
-                            
-                            assessment = {
-                                "id": f"self_assessment_{len(self_assessments) + 1}_{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                                "employee_id": employee_id,
-                                "employee_email": user_email,
-                                "assessment_period": assessment_period,
-                                "strengths": strengths.strip(),
-                                "areas_for_improvement": areas_for_improvement.strip() if areas_for_improvement else "",
-                                "goals_progress": goals_progress.strip() if goals_progress else "",
-                                "additional_remarks": additional_remarks.strip() if additional_remarks else "",
-                                "created_at": datetime.now().isoformat(),
-                                "status": "submitted"
-                            }
-                            
-                            self_assessments.append(assessment)
-                            st.session_state.data_manager.save_data("self_assessments", self_assessments)
-                            st.success("✅ Self-assessment submitted successfully! Your manager will be able to review it.")
-                            st.rerun()
-                        else:
-                            st.error("❌ Please provide at least your strengths and achievements.")
-            
-            # Show previous self-assessments
-            self_assessments = st.session_state.data_manager.load_data("self_assessments") or []
-            employee_assessments = [a for a in self_assessments if a.get("employee_id") == employee_id]
-            employee_assessments.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-            
-            if employee_assessments:
-                st.markdown("---")
-                st.subheader("📋 Your Previous Self-Assessments")
-                for assessment in employee_assessments[:5]:  # Show last 5
-                    with st.expander(f"> {assessment.get('assessment_period')} - {assessment.get('created_at', '')[:10]}"):
-                        st.write(f"**Period:** {assessment.get('assessment_period')}")
-                        st.write(f"**Submitted:** {assessment.get('created_at', 'N/A')[:19]}")
-                        st.markdown("---")
-                        st.write("**Strengths & Achievements:**")
-                        st.write(assessment.get('strengths', 'N/A'))
-                        if assessment.get('areas_for_improvement'):
-                            st.markdown("---")
-                            st.write("**Areas for Improvement:**")
-                            st.write(assessment.get('areas_for_improvement'))
-                        if assessment.get('goals_progress'):
-                            st.markdown("---")
-                            st.write("**Goals & Progress:**")
-                            st.write(assessment.get('goals_progress'))
-                        if assessment.get('additional_remarks'):
-                            st.markdown("---")
-                            st.write("**Additional Remarks:**")
-                            st.write(assessment.get('additional_remarks'))
-            else:
-                st.info("📝 No self-assessments submitted yet. Add your first self-assessment above.")
-        else:
-            # Managers and owners can evaluate
-            if st.button("Evaluate Performance"):
-                with st.spinner("Evaluating performance..."):
-                    evaluation = performance_agent.evaluate_employee(employee_id, save=True)
-                    st.success("✅ Performance evaluated successfully!")
-            else:
-                # Show existing evaluation if available
-                evaluation = performance_agent.evaluate_employee(employee_id, save=False)
-        
-        # Display performance metrics with AI-powered insights (for both employees and managers)
-        if evaluation:
-            # AI-Powered Performance Overview
-            st.markdown("### 🤖 AI Performance Analysis")
-            
-            # Get AI insights
-            enhanced_ai_agent = agents.get("enhanced_ai_agent")
-            ai_insights = None
-            if enhanced_ai_agent:
-                try:
-                    ai_insights = enhanced_ai_agent.generate_growth_insights(employee_id)
-                except:
-                    pass
-            
-            # Performance Score with AI interpretation
-            perf_score = evaluation.get('performance_score', 0)
-            completion_rate = evaluation.get('completion_rate', 0)
-            on_time_rate = evaluation.get('on_time_rate', 0)
-            
-            # AI-generated performance interpretation
-            if perf_score >= 85:
-                perf_status = "🌟 Exceptional"
-                perf_color = "#3DDF85"
-                perf_insight = "AI Analysis: Outstanding performance indicates strong work ethic and capability. This employee demonstrates excellence across multiple metrics."
-            elif perf_score >= 70:
-                perf_status = "✅ Strong"
-                perf_color = "#00E0FF"
-                perf_insight = "AI Analysis: Solid performance with consistent delivery. Room for growth in specific areas to reach exceptional levels."
-            elif perf_score >= 55:
-                perf_status = "📊 Average"
-                perf_color = "#FFA500"
-                perf_insight = "AI Analysis: Meeting baseline expectations. Focused improvement in task completion and time management could significantly boost performance."
-            else:
-                perf_status = "⚠️ Needs Attention"
-                perf_color = "#FF6B6B"
-                perf_insight = "AI Analysis: Performance below expectations. Immediate intervention recommended with structured support and clear improvement goals."
-            
-            # Enhanced metrics with AI context
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, {perf_color}15, {perf_color}05); 
-                                border: 2px solid {perf_color}; border-radius: 16px; padding: 20px; text-align: center;">
-                        <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 8px;">Performance Score</div>
-                        <div style="font-size: 2.5rem; font-weight: 700; color: {perf_color}; margin-bottom: 5px;">
-                            {perf_score:.1f}
-                        </div>
-                        <div style="font-size: 0.85rem; color: {perf_color}; font-weight: 600;">{perf_status}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                completion_status = "Excellent" if completion_rate >= 90 else "Good" if completion_rate >= 75 else "Fair" if completion_rate >= 60 else "Needs Improvement"
-                completion_color = "#3DDF85" if completion_rate >= 90 else "#00E0FF" if completion_rate >= 75 else "#FFA500" if completion_rate >= 60 else "#FF6B6B"
-                st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, {completion_color}15, {completion_color}05); 
-                                border: 2px solid {completion_color}; border-radius: 16px; padding: 20px; text-align: center;">
-                        <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 8px;">Completion Rate</div>
-                        <div style="font-size: 2.5rem; font-weight: 700; color: {completion_color}; margin-bottom: 5px;">
-                            {completion_rate:.1f}%
-                        </div>
-                        <div style="font-size: 0.85rem; color: {completion_color}; font-weight: 600;">{completion_status}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                ontime_status = "Excellent" if on_time_rate >= 90 else "Good" if on_time_rate >= 75 else "Fair" if on_time_rate >= 60 else "Needs Improvement"
-                ontime_color = "#3DDF85" if on_time_rate >= 90 else "#00E0FF" if on_time_rate >= 75 else "#FFA500" if on_time_rate >= 60 else "#FF6B6B"
-                st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, {ontime_color}15, {ontime_color}05); 
-                                border: 2px solid {ontime_color}; border-radius: 16px; padding: 20px; text-align: center;">
-                        <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 8px;">On-Time Rate</div>
-                        <div style="font-size: 2.5rem; font-weight: 700; color: {ontime_color}; margin-bottom: 5px;">
-                            {on_time_rate:.1f}%
-                        </div>
-                        <div style="font-size: 0.85rem; color: {ontime_color}; font-weight: 600;">{ontime_status}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-            
-            with col4:
-                rank = evaluation.get('rank', 'N/A')
-                rank_color = "#3DDF85" if isinstance(rank, (int, float)) and rank <= 3 else "#00E0FF" if isinstance(rank, (int, float)) and rank <= 5 else "#FFA500"
-                st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, {rank_color}15, {rank_color}05); 
-                                border: 2px solid {rank_color}; border-radius: 16px; padding: 20px; text-align: center;">
-                        <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 8px;">Team Rank</div>
-                        <div style="font-size: 2.5rem; font-weight: 700; color: {rank_color}; margin-bottom: 5px;">
-                            #{rank}
-                        </div>
-                        <div style="font-size: 0.85rem; color: {rank_color}; font-weight: 600;">Position</div>
-                    </div>
-                """, unsafe_allow_html=True)
-            
-            st.markdown("---")
-            
-            # AI-Generated Insights Section
-            st.markdown("### 🧠 AI-Generated Insights & Recommendations")
-            
-            insight_col1, insight_col2 = st.columns([2, 1])
-            
-            with insight_col1:
-                # AI Performance Summary
-                st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, rgba(0, 224, 255, 0.1), rgba(0, 224, 255, 0.05)); 
-                                border: 1px solid rgba(0, 224, 255, 0.3); border-radius: 16px; padding: 20px; margin-bottom: 20px;">
-                        <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                            <span style="font-size: 1.5rem; margin-right: 10px;">🤖</span>
-                            <h4 style="color: #00E0FF; margin: 0;">AI Performance Analysis</h4>
-                        </div>
-                        <p style="color: #FFFFFF; line-height: 1.6; margin: 0;">
-                            {perf_insight}
-                        </p>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                # Detailed AI Insights
-                if ai_insights and not ai_insights.get("error"):
-                    insights_list = ai_insights.get("insights", [])
-                    recommendations = ai_insights.get("recommendations", [])
-                    
-                    if insights_list:
-                        st.markdown("#### 📊 Key Insights")
-                        for insight in insights_list[:5]:
-                            severity = insight.get("severity", "info")
-                            severity_color = "#3DDF85" if severity == "positive" else "#FF6B6B" if severity == "high" else "#FFA500" if severity == "medium" else "#00E0FF"
-                            severity_icon = "✅" if severity == "positive" else "⚠️" if severity in ["high", "medium"] else "ℹ️"
-                            
-                            st.markdown(f"""
-                                <div style="background-color: rgba(255, 255, 255, 0.05); border-left: 4px solid {severity_color}; 
-                                            border-radius: 8px; padding: 15px; margin-bottom: 10px;">
-                                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
-                                        <span style="font-size: 1.2rem; margin-right: 8px;">{severity_icon}</span>
-                                        <strong style="color: {severity_color};">{insight.get('type', 'Insight').title()}</strong>
-                                    </div>
-                                    <p style="color: #94A3B8; margin: 0; padding-left: 32px;">{insight.get('message', '')}</p>
-                                </div>
-                            """, unsafe_allow_html=True)
-                    
-                    if recommendations:
-                        st.markdown("#### 💡 AI Recommendations")
-                        for i, rec in enumerate(recommendations[:5], 1):
-                            st.markdown(f"""
-                                <div style="background-color: rgba(0, 224, 255, 0.1); border-radius: 8px; padding: 12px; margin-bottom: 8px;">
-                                    <div style="display: flex; align-items: start;">
-                                        <span style="color: #00E0FF; font-weight: 600; margin-right: 10px;">{i}.</span>
-                                        <span style="color: #FFFFFF;">{rec}</span>
-                                    </div>
-                                </div>
-                            """, unsafe_allow_html=True)
-            
-            with insight_col2:
-                # Performance Breakdown Chart
-                breakdown_data = {
-                    "Completion": completion_rate,
-                    "On-Time": on_time_rate,
-                    "Quality": min(100, (completion_rate + on_time_rate) / 2)
-                }
-                
-                fig_breakdown = go.Figure(data=[
-                    go.Bar(
-                        x=list(breakdown_data.keys()),
-                        y=list(breakdown_data.values()),
-                        marker=dict(
-                            color=['#00E0FF', '#14F1FF', '#3DDF85'],
-                            line=dict(color='#FFFFFF', width=2)
-                        ),
-                        text=[f"{v:.1f}%" for v in breakdown_data.values()],
-                        textposition='outside',
-                        textfont=dict(color='#FFFFFF', size=12, family='Inter')
-                    )
-                ])
-                
-                fig_breakdown.update_layout(
-                    title="Performance Breakdown",
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font_color='#FFFFFF',
-                    height=300,
-                    showlegend=False,
-                    xaxis=dict(gridcolor='rgba(255, 255, 255, 0.1)'),
-                    yaxis=dict(gridcolor='rgba(255, 255, 255, 0.1)', range=[0, 100])
-                )
-                st.plotly_chart(fig_breakdown, use_container_width=True)
-                
-                # Performance Trend Indicator
-                trend = evaluation.get('trend', 'stable')
-                trend_icon = "📈" if trend == "improving" else "📉" if trend == "declining" else "➡️"
-                trend_color = "#3DDF85" if trend == "improving" else "#FF6B6B" if trend == "declining" else "#FFA500"
-                
-                st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, {trend_color}15, {trend_color}05); 
-                                border: 1px solid {trend_color}; border-radius: 12px; padding: 15px; text-align: center; margin-top: 10px;">
-                        <div style="font-size: 2rem; margin-bottom: 5px;">{trend_icon}</div>
-                        <div style="color: {trend_color}; font-weight: 600; font-size: 0.9rem;">Trend: {trend.title()}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-            
-            st.markdown("---")
-            
-            # Detailed Performance Metrics
-            st.subheader("📋 Detailed Performance Metrics")
-            display_as_table(evaluation)
-            
-            # Performance history chart
-            history = performance_agent.get_employee_performance_history(employee_id)
-            if len(history) > 1:
-                df_history = pd.DataFrame(history)
-                df_history['evaluated_at'] = pd.to_datetime(df_history['evaluated_at'])
-                
-                fig = px.line(df_history, x="evaluated_at", y="performance_score",
-                            title="Performance Trend Over Time",
-                            labels={"evaluated_at": "Date", "performance_score": "Performance Score"},
-                            color_discrete_sequence=['#00E0FF'])
-                fig.update_traces(mode='lines+markers', line=dict(width=3, color='#00E0FF'), marker=dict(size=8, color='#14F1FF'))
-                fig.update_layout(
-                    plot_bgcolor='#111729',
-                    paper_bgcolor='#111729',
-                    font_color='#FFFFFF',
-                    xaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)'),
-                    yaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)')
-                )
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Additional metrics charts
-                col1, col2 = st.columns(2)
-                with col1:
-                    fig2 = px.bar(df_history, x="evaluated_at", y="completion_rate",
-                                title="Completion Rate Trend",
-                                color_discrete_sequence=['#00E0FF'])
-                    fig2.update_layout(
-                        plot_bgcolor='#111729',
-                        paper_bgcolor='#111729',
-                        font_color='#FFFFFF',
-                        xaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)'),
-                        yaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)')
-                    )
-                    st.plotly_chart(fig2, use_container_width=True)
-                
-                with col2:
-                    fig3 = px.bar(df_history, x="evaluated_at", y="on_time_rate",
-                                title="On-Time Rate Trend",
-                                color_discrete_sequence=['#00E0FF'])
-                    fig3.update_layout(
-                        plot_bgcolor='#111729',
-                        paper_bgcolor='#111729',
-                        font_color='#FFFFFF',
-                        xaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)'),
-                        yaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)')
-                    )
-                    st.plotly_chart(fig3, use_container_width=True)
-            elif len(history) == 1:
-                st.info("📊 Only one performance evaluation available. More data will be shown as evaluations are added.")
-            else:
-                st.info("📊 No performance history available yet. Performance will be tracked as you complete tasks.")
-            
-            # AI Performance Prediction
-            st.markdown("---")
-            st.markdown("### 🔮 AI Performance Prediction")
-            
-            pred_col1, pred_col2 = st.columns([1, 2])
-            
-            with pred_col1:
-                months_to_predict = st.slider("Predict Next (Months)", 1, 6, 3, key="perf_prediction_months")
-                if st.button("🔮 Generate AI Prediction", key="generate_perf_prediction"):
-                    if enhanced_ai_agent:
-                        with st.spinner("🤖 AI is analyzing patterns and generating prediction..."):
-                            prediction = enhanced_ai_agent.predict_performance_trend(employee_id, months_to_predict)
-                            
-                            if prediction and prediction.get("prediction") != "insufficient_data":
-                                current_score = prediction.get("current_score", perf_score)
-                                predicted_score = prediction.get("predicted_score", perf_score)
-                                trend_direction = prediction.get("trend", "stable")
-                                
-                                # Prediction visualization
-                                pred_fig = go.Figure()
-                                
-                                # Current score
-                                pred_fig.add_trace(go.Scatter(
-                                    x=[0],
-                                    y=[current_score],
-                                    mode='markers+text',
-                                    marker=dict(size=20, color='#00E0FF', symbol='circle'),
-                                    text=[f"Current: {current_score:.1f}"],
-                                    textposition="top center",
-                                    name="Current Performance",
-                                    showlegend=False
-                                ))
-                                
-                                # Predicted score
-                                pred_fig.add_trace(go.Scatter(
-                                    x=[months_to_predict],
-                                    y=[predicted_score],
-                                    mode='markers+text',
-                                    marker=dict(size=20, color='#3DDF85' if predicted_score > current_score else '#FF6B6B', symbol='diamond'),
-                                    text=[f"Predicted: {predicted_score:.1f}"],
-                                    textposition="top center",
-                                    name="Predicted Performance",
-                                    showlegend=False
-                                ))
-                                
-                                # Trend line
-                                pred_fig.add_trace(go.Scatter(
-                                    x=[0, months_to_predict],
-                                    y=[current_score, predicted_score],
-                                    mode='lines',
-                                    line=dict(color='#00E0FF', width=3, dash='dash'),
-                                    name="Trend",
-                                    showlegend=False
-                                ))
-                                
-                                pred_fig.update_layout(
-                                    title="AI Performance Prediction",
-                                    xaxis_title="Months",
-                                    yaxis_title="Performance Score",
-                                    plot_bgcolor='rgba(0,0,0,0)',
-                                    paper_bgcolor='rgba(0,0,0,0)',
-                                    font_color='#FFFFFF',
-                                    height=300,
-                                    xaxis=dict(gridcolor='rgba(255, 255, 255, 0.1)', range=[-0.5, months_to_predict + 0.5]),
-                                    yaxis=dict(gridcolor='rgba(255, 255, 255, 0.1)', range=[0, 100])
-                                )
-                                
-                                st.plotly_chart(pred_fig, use_container_width=True)
-                                
-                                # Prediction insights
-                                score_change = predicted_score - current_score
-                                if score_change > 5:
-                                    pred_insight = f"AI predicts a **{score_change:.1f} point improvement** over the next {months_to_predict} months. This indicates strong growth potential based on current trends."
-                                    pred_color = "#3DDF85"
-                                elif score_change < -5:
-                                    pred_insight = f"AI predicts a **{abs(score_change):.1f} point decline** over the next {months_to_predict} months. Immediate intervention and support recommended."
-                                    pred_color = "#FF6B6B"
-                                else:
-                                    pred_insight = f"AI predicts **stable performance** (±{abs(score_change):.1f} points) over the next {months_to_predict} months. Consistent delivery expected."
-                                    pred_color = "#FFA500"
-                                
-                                st.markdown(f"""
-                                    <div style="background: linear-gradient(135deg, {pred_color}15, {pred_color}05); 
-                                                border: 1px solid {pred_color}; border-radius: 12px; padding: 15px; margin-top: 15px;">
-                                        <div style="color: {pred_color}; font-weight: 600; margin-bottom: 8px;">🤖 AI Prediction Insight</div>
-                                        <p style="color: #FFFFFF; margin: 0; line-height: 1.6;">{pred_insight}</p>
-                                    </div>
-                                """, unsafe_allow_html=True)
+                                projects.append(new_project)
+                                data_manager.save_data("projects", projects)
                             else:
-                                st.warning("⚠️ Insufficient historical data for AI prediction. Need at least 2 performance evaluations.")
+                                # Use API to create project
+                                st.info("API project creation not yet implemented")
+                            
+                            st.success("✅ Project created successfully!")
+                            st.balloons()
+                            st.session_state.show_projects_view = True
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error creating project: {str(e)}")
                     else:
-                        st.info("ℹ️ AI prediction feature requires enhanced AI agent.")
-            
-            with pred_col2:
-                # AI-Generated Action Plan
-                st.markdown("#### 🎯 AI-Generated Action Plan")
-                
-                action_plan_items = []
-                
-                # Generate action items based on performance
-                if completion_rate < 80:
-                    action_plan_items.append({
-                        "priority": "High",
-                        "action": "Focus on task completion - aim for 90%+ completion rate",
-                        "timeline": "Next 2 weeks"
-                    })
-                
-                if on_time_rate < 75:
-                    action_plan_items.append({
-                        "priority": "High",
-                        "action": "Improve time management - prioritize deadline adherence",
-                        "timeline": "Next month"
-                    })
-                
-                if perf_score < 70:
-                    action_plan_items.append({
-                        "priority": "Medium",
-                        "action": "Engage in skill development programs",
-                        "timeline": "Next quarter"
-                    })
-                
-                if not action_plan_items:
-                    action_plan_items.append({
-                        "priority": "Maintain",
-                        "action": "Continue current performance trajectory",
-                        "timeline": "Ongoing"
-                    })
-                
-                for item in action_plan_items:
-                    priority_color = "#FF6B6B" if item["priority"] == "High" else "#FFA500" if item["priority"] == "Medium" else "#3DDF85"
-                    st.markdown(f"""
-                        <div style="background-color: rgba(255, 255, 255, 0.05); border-left: 4px solid {priority_color}; 
-                                    border-radius: 8px; padding: 15px; margin-bottom: 10px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                <span style="color: {priority_color}; font-weight: 600; font-size: 0.85rem;">{item['priority']} Priority</span>
-                                <span style="color: #94A3B8; font-size: 0.8rem;">{item['timeline']}</span>
-                            </div>
-                            <p style="color: #FFFFFF; margin: 0;">{item['action']}</p>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-# Employee Dashboard page
-def employee_dashboard_page():
-    """Employee self-service dashboard"""
-    st.title("👤 My Dashboard")
-    st.markdown("---")
+                        st.error("⚠️ Please enter a project name.")
     
-    if not st.session_state.user:
-        st.warning("Please log in to view your dashboard")
-        return
-    
-    user_email = st.session_state.user.get("email")
-    user_role = st.session_state.user.get("role", "employee")
-    
-    # Get employee record by email to get employee ID
-    employees = st.session_state.data_manager.load_data("employees") or []
-    employee = next((e for e in employees if e.get("email") == user_email), None)
-    
-    # If no employee record found, check if user is Owner/Manager
-    if not employee:
-        if user_role in ["owner", "manager"]:
-            # Owners/Managers can view a system overview dashboard
-            st.info("ℹ️ You don't have an employee record. Showing system overview instead.")
-            st.markdown("---")
-            
-            agents = initialize_agents()
-            task_agent = agents["task_agent"]
-            performance_agent = agents["performance_agent"]
-            
-            # System-wide metrics for Owners/Managers
-            all_tasks = task_agent.get_tasks()
-            all_employees = st.session_state.data_manager.load_data("employees") or []
-            
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Total Employees", len(all_employees))
-            with col2:
-                total_tasks = len(all_tasks)
-                completed_tasks = len([t for t in all_tasks if t.get("status") == "completed"])
-                st.metric("Tasks Completed", f"{completed_tasks}/{total_tasks}")
-            with col3:
-                active_tasks = len([t for t in all_tasks if t.get("status") == "in_progress"])
-                st.metric("Active Tasks", active_tasks)
-            with col4:
-                pending_tasks = len([t for t in all_tasks if t.get("status") == "pending"])
-                st.metric("Pending Tasks", pending_tasks)
-            
-            st.markdown("---")
-            st.subheader("📊 System Overview")
-            st.write("As an Owner/Manager, you can view detailed analytics and reports from the main Dashboard page.")
-            st.write("To view personal metrics, please ensure you have an employee record created.")
-            return
-        else:
-            # Regular employees must have an employee record
-            st.error("❌ Employee record not found. Please contact your administrator.")
-            return
-    
-    employee_id = employee.get("id")
-    user_id = employee_id  # Use employee ID for performance evaluation
-    
-    agents = initialize_agents()
-    achievement_agent = agents["achievement_agent"]
-    performance_agent = agents["performance_agent"]
-    task_agent = agents["task_agent"]
-    
-    tab1, tab2, tab3 = st.tabs(["Overview", "Achievements", "Performance History"])
-    
-    with tab1:
-        st.subheader("Performance Overview")
-        
-        # Get current performance - DON'T save, just read existing data
-        evaluation = performance_agent.evaluate_employee(employee_id, save=False)
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Performance Score", f"{evaluation.get('performance_score', 0):.1f}")
-        with col2:
-            st.metric("Completion Rate", f"{evaluation.get('completion_rate', 0):.1f}%")
-        with col3:
-            st.metric("On-Time Rate", f"{evaluation.get('on_time_rate', 0):.1f}%")
-        with col4:
-            st.metric("Rank", f"#{evaluation.get('rank', 'N/A')}")
-        
-        st.markdown("---")
-        
-        # Recent tasks - use employee ID, not email
-        st.subheader("Recent Tasks")
-        my_tasks = task_agent.get_tasks({"assigned_to": employee_id})
-        if my_tasks:
-            recent_tasks = sorted(my_tasks, key=lambda x: x.get("created_at", ""), reverse=True)[:5]
-            for task in recent_tasks:
-                status_emoji = {"completed": "✅", "in_progress": "🔄", "pending": "⏳"}
-                st.write(f"{status_emoji.get(task.get('status'), '📋')} **{task.get('title')}** - {task.get('status', 'N/A')}")
-                if task.get('due_date'):
-                    st.write(f"   *Due: {task.get('due_date')}*")
-        else:
-            st.info("No tasks assigned")
-        
-    st.markdown("---")
-    
-    # Achievement summary
-    st.subheader("Achievement Summary")
-    achievement_stats = achievement_agent.get_achievement_statistics(employee_id)
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Achievements", achievement_stats.get("total_achievements", 0))
-    with col2:
-        st.metric("Verified", achievement_stats.get("verified_achievements", 0))
-    with col3:
-        st.metric("Recent (30 days)", achievement_stats.get("recent_achievements", 0))
-    
-    with tab2:
-        st.subheader("Log Achievements")
-        
-        with st.form("log_achievement_form"):
-            achievement_title = st.text_input("Achievement Title *")
-            achievement_desc = st.text_area("Description")
-            achievement_category = st.selectbox("Category", 
-                                               ["task_completion", "project_milestone", "skill_development", "general"],
-                                               key="create_achievement_category")
-            achievement_impact = st.selectbox("Impact", ["low", "medium", "high"], key="create_achievement_impact")
-            
-            # Task completion shortcut
-            task_id = None
-            task_to_log = None
-            completion_notes = ""
-            my_tasks = task_agent.get_tasks({"assigned_to": employee_id})
-            if my_tasks:
-                completed_tasks = [t for t in my_tasks if t.get("status") == "completed"]
-                if completed_tasks:
-                    st.markdown("**Or log task completion:**")
-                    task_to_log = st.selectbox("Select Completed Task", 
-                                              ["-- Choose task --"] + [f"{t.get('title')} (ID: {t.get('id')})" for t in completed_tasks],
-                                              key="log_task_completion_select")
-                    if task_to_log and task_to_log != "-- Choose task --":
-                        try:
-                            task_id = task_to_log.split("ID: ")[1].split(")")[0]
-                            completion_notes = st.text_area("Completion Notes", key="task_completion_notes")
-                        except:
-                            task_id = None
-            
-            if st.form_submit_button("📝 Log Achievement"):
-                if achievement_title:
-                    result = achievement_agent.log_achievement(employee_id, {
-                        "title": achievement_title,
-                        "description": achievement_desc,
-                        "category": achievement_category,
-                        "impact": achievement_impact
-                    })
-                    if result.get("success"):
-                        st.success("✅ Achievement logged successfully!")
-                        st.rerun()
-                elif task_to_log and task_to_log != "-- Choose task --" and task_id:
-                    result = achievement_agent.log_task_completion(employee_id, task_id, completion_notes)
-                    if result.get("success"):
-                        st.success("✅ Task completion logged as achievement!")
-                        st.rerun()
-        
-        st.markdown("---")
-        st.subheader("My Achievements")
-        
-        achievement_category_filter = st.selectbox("Filter by Category", 
-                                                   ["All"] + ["task_completion", "project_milestone", "skill_development", "general"],
-                                                   key="ach_filter")
-        
-        achievements = achievement_agent.get_employee_achievements(
-            user_id, 
-            category=achievement_category_filter if achievement_category_filter != "All" else None
-        )
-        
-        if achievements:
-            for idx, achievement in enumerate(achievements):
-                achievement_id = achievement.get('id')
-                verified_badge = "✅ Verified" if achievement.get("verified") else "⏳ Pending"
-                impact_emoji = {"high": "🔥", "medium": "⭐", "low": "📌"}
-                
-                # Create styled achievement card
-                achievement_html = f"""
-                <div class="achievement-item">
-                    <div style="display: flex; align-items: center; margin-bottom: 0.75rem;">
-                        <span style="font-size: 1.5rem; margin-right: 0.5rem;">{impact_emoji.get(achievement.get('impact'), '📌')}</span>
-                        <h3 style="color: #FFFFFF; margin: 0; flex: 1;">{achievement.get('title')}</h3>
-                        <span style="color: #00E0FF; font-weight: 500;">{verified_badge}</span>
-                    </div>
-                    <div style="color: #94A3B8; margin-bottom: 0.5rem; font-size: 0.95rem;">
-                        <strong>Category:</strong> {achievement.get('category', 'N/A')} | 
-                        <strong>Impact:</strong> {achievement.get('impact', 'N/A')}
-                    </div>
-                    {f'<div style="color: #94A3B8; opacity: 0.9; margin-bottom: 0.5rem; font-style: italic;">{achievement.get("description")}</div>' if achievement.get('description') else ''}
-                    <div style="color: #94A3B8; opacity: 0.7; font-size: 0.85rem;">
-                        <strong>Date:</strong> {achievement.get('created_at', 'N/A')}
-                    </div>
-                </div>
-                """
-                st.markdown(achievement_html, unsafe_allow_html=True)
-                
-                # Edit and Delete buttons
-                col1, col2 = st.columns([1, 1])
-                with col1:
-                    if st.button("✏️ Edit", key=f"edit_achievement_{idx}_{achievement_id}", use_container_width=True):
-                        st.session_state[f"editing_achievement_{achievement_id}"] = True
-                        st.rerun()
-                with col2:
-                    if st.button("🗑️ Delete", key=f"delete_achievement_{idx}_{achievement_id}", use_container_width=True, type="secondary"):
-                        st.session_state[f"confirm_delete_achievement_{achievement_id}"] = True
-                        st.rerun()
-                
-                # Edit form
-                if st.session_state.get(f"editing_achievement_{achievement_id}", False):
-                    with st.form(f"edit_achievement_form_{achievement_id}"):
-                        edit_title = st.text_input("Title", value=achievement.get('title', ''), key=f"edit_title_{achievement_id}")
-                        edit_desc = st.text_area("Description", value=achievement.get('description', ''), key=f"edit_desc_{achievement_id}")
-                        edit_category = st.selectbox("Category", 
-                                                    ["task_completion", "project_milestone", "skill_development", "general"],
-                                                    index=["task_completion", "project_milestone", "skill_development", "general"].index(achievement.get('category', 'general')) if achievement.get('category', 'general') in ["task_completion", "project_milestone", "skill_development", "general"] else 0,
-                                                    key=f"edit_category_{achievement_id}")
-                        edit_impact = st.selectbox("Impact", ["low", "medium", "high"],
-                                                   index=["low", "medium", "high"].index(achievement.get('impact', 'medium')) if achievement.get('impact', 'medium') in ["low", "medium", "high"] else 1,
-                                                   key=f"edit_impact_{achievement_id}")
-                        
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.form_submit_button("💾 Save", use_container_width=True):
-                                result = achievement_agent.update_achievement(achievement_id, employee_id, {
-                                    "title": edit_title,
-                                    "description": edit_desc,
-                                    "category": edit_category,
-                                    "impact": edit_impact
-                                })
-                                if result.get("success"):
-                                    st.success("✅ Achievement updated!")
-                                    st.session_state[f"editing_achievement_{achievement_id}"] = False
-                                    st.rerun()
-                                else:
-                                    st.error(result.get("error", "Failed to update"))
-                        with col2:
-                            if st.form_submit_button("❌ Cancel", use_container_width=True):
-                                st.session_state[f"editing_achievement_{achievement_id}"] = False
-                                st.rerun()
-                
-                # Delete confirmation
-                if st.session_state.get(f"confirm_delete_achievement_{achievement_id}", False):
-                    st.warning(f"⚠️ Are you sure you want to delete '{achievement.get('title')}'? This action cannot be undone.")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("✅ Confirm Delete", key=f"confirm_del_{achievement_id}", use_container_width=True, type="primary"):
-                            result = achievement_agent.delete_achievement(achievement_id, employee_id)
-                            if result.get("success"):
-                                st.success("✅ Achievement deleted!")
-                                st.session_state[f"confirm_delete_achievement_{achievement_id}"] = False
-                                st.rerun()
-                            else:
-                                st.error(result.get("error", "Failed to delete"))
-                    with col2:
-                        if st.button("❌ Cancel", key=f"cancel_del_{achievement_id}", use_container_width=True):
-                            st.session_state[f"confirm_delete_achievement_{achievement_id}"] = False
-                            st.rerun()
-                
-                # Separator between achievements
-                if idx < len(achievements) - 1:
-                    st.markdown("<hr style='border: 1px solid rgba(255, 255, 255, 0.1); margin: 20px 0;'>", unsafe_allow_html=True)
-        else:
-            st.info("No achievements logged yet")
-    
+    # Project Reports tab
     with tab3:
-        st.subheader("Performance History & Trends")
-        
-        # Performance history chart
-        history = performance_agent.get_employee_performance_history(user_id)
-        if len(history) > 1:
-            df_history = pd.DataFrame(history)
-            df_history['evaluated_at'] = pd.to_datetime(df_history['evaluated_at'])
-            
-            # Interactive trend chart
-            fig = px.line(df_history, x="evaluated_at", y="performance_score",
-                         title="Performance Score Trend Over Time",
-                         labels={"evaluated_at": "Date", "performance_score": "Performance Score"},
-                         color_discrete_sequence=['#00E0FF'])
-            fig.update_traces(mode='lines+markers', line=dict(width=3, color='#00E0FF'), marker=dict(size=8, color='#14F1FF'))
-            fig.update_layout(
-                hovermode='x unified',
-                plot_bgcolor='#111729',
-                paper_bgcolor='#111729',
-                font_color='#FFFFFF',
-                xaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)'),
-                yaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)')
-            )
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Additional metrics
-            col1, col2 = st.columns(2)
-            with col1:
-                fig2 = px.bar(df_history, x="evaluated_at", y="completion_rate",
-                            title="Completion Rate Trend",
-                            color_discrete_sequence=['#00E0FF'])
-                fig2.update_layout(
-                    plot_bgcolor='#111729',
-                    paper_bgcolor='#111729',
-                    font_color='#FFFFFF',
-                    xaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)'),
-                    yaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)')
-                )
-                st.plotly_chart(fig2, use_container_width=True)
-            
-            with col2:
-                fig3 = px.bar(df_history, x="evaluated_at", y="on_time_rate",
-                            title="On-Time Rate Trend",
-                            color_discrete_sequence=['#00E0FF'])
-                fig3.update_layout(
-                    plot_bgcolor='#111729',
-                    paper_bgcolor='#111729',
-                    font_color='#FFFFFF',
-                    xaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)'),
-                    yaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)')
-                )
-                st.plotly_chart(fig3, use_container_width=True)
-            
-            # Historical comparison
-            st.subheader("Historical Comparison")
-            if len(history) >= 2:
-                latest = history[0]
-                previous = history[1]
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    perf_change = latest.get("performance_score", 0) - previous.get("performance_score", 0)
-                    st.metric("Performance Score", 
-                            f"{latest.get('performance_score', 0):.1f}",
-                            delta=f"{perf_change:+.1f}")
-                with col2:
-                    comp_change = latest.get("completion_rate", 0) - previous.get("completion_rate", 0)
-                    st.metric("Completion Rate",
-                            f"{latest.get('completion_rate', 0):.1f}%",
-                            delta=f"{comp_change:+.1f}%")
-                with col3:
-                    ontime_change = latest.get("on_time_rate", 0) - previous.get("on_time_rate", 0)
-                    st.metric("On-Time Rate",
-                            f"{latest.get('on_time_rate', 0):.1f}%",
-                            delta=f"{ontime_change:+.1f}%")
-            else:
-                st.info("Not enough performance history data. Complete more tasks to see trends!")
-                
-# Analytics page
-def analytics_page():
-    """Analytics and insights page with predictive reports and correlation analysis"""
-    st.title("🔍 Analytics & Insights")
-    st.markdown("---")
-    
-    agents = initialize_agents()
-    user_role = st.session_state.user.get("role", "employee")
-    
-    # Only managers and owners can access advanced analytics
-    if user_role not in ["owner", "manager"]:
-        st.warning("⚠️ Advanced analytics are only available to managers and owners.")
-        return
-    
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Overview", "Predictive Reports", "Correlation Analysis", "Trend Analysis", "AI Insights"])
-    
-    with tab1:
-        overview = agents["reporting_agent"].generate_overview_report()
-        st.subheader("System Overview")
-        display_as_table(overview)
-    
-    with tab2:
-        st.subheader("Predictive Reports - Capacity & Risk Forecasting")
-        
-        sub_tab1, sub_tab2 = st.tabs(["Capacity Forecast", "Project Risk Forecast"])
-        
-        with sub_tab1:
-            st.markdown("#### Employee/Team Capacity Forecasting")
-            
-            forecast_type = st.radio("Forecast Type", ["Individual Employee", "Team"], horizontal=True, key="forecast_type_radio")
-            weeks = st.slider("Forecast Period (weeks)", 1, 12, 4, key="forecast_weeks_slider")
-            
-            if forecast_type == "Individual Employee":
-                employees = st.session_state.data_manager.load_data("employees") or []
-                selected_employee = st.selectbox("Select Employee",
-                                                ["-- Choose employee --"] + [e.get('name') for e in employees],
-                                                key="capacity_forecast_employee")
-                
-                # Get employee ID from selected name
-                employee_id = None
-                if selected_employee and selected_employee != "-- Choose employee --":
-                    employee = next((e for e in employees if e.get('name') == selected_employee), None)
-                    if employee:
-                        employee_id = employee.get('id')
-                
-                if employee_id:
-                    if st.button("📊 Generate Capacity Forecast", key="generate_capacity_forecast_btn"):
-                        forecast = agents["predictive_analytics_agent"].forecast_capacity(employee_id, weeks)
-                        
-                        st.success("✅ Capacity forecast generated!")
-                        
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
-                            st.metric("Current Workload", forecast.get("current_workload", 0))
-                        with col2:
-                            st.metric("Tasks/Week", forecast.get("tasks_per_week", 0))
-                        with col3:
-                            st.metric("Forecasted Capacity", f"{forecast.get('forecasted_capacity', 0):.1f}")
-                        with col4:
-                            st.metric("Available Capacity", f"{forecast.get('available_capacity', 0):.1f}")
-                        
-                        st.metric("Utilization Rate", f"{forecast.get('utilization_rate', 0):.1f}%")
-                        st.info(f"💡 **Recommendation:** {forecast.get('recommendation', 'N/A')}")
-                elif selected_employee and selected_employee != "-- Choose employee --":
-                    st.info("👤 Select an employee and click 'Generate Capacity Forecast' to see predictions.")
-            else:
-                if st.button("📊 Generate Team Capacity Forecast"):
-                    forecast = agents["predictive_analytics_agent"].forecast_capacity(None, weeks)
-                    
-                    st.success("✅ Team capacity forecast generated!")
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Total Employees", forecast.get("total_employees", 0))
-                    with col2:
-                        st.metric("Total Capacity", f"{forecast.get('total_capacity', 0):.1f}")
-                    with col3:
-                        st.metric("Total Workload", forecast.get("total_workload", 0))
-                    with col4:
-                        st.metric("Available Capacity", f"{forecast.get('total_available_capacity', 0):.1f}")
-                    
-                    st.metric("Team Utilization", f"{forecast.get('team_utilization_rate', 0):.1f}%")
-                    
-                    # Employee breakdown
-                    if forecast.get("employee_forecasts"):
-                        st.subheader("Employee Breakdown")
-                        forecast_data = forecast["employee_forecasts"]
-                        # Add index column
-                        forecast_with_index = []
-                        for idx, emp in enumerate(forecast_data, start=1):
-                            emp_copy = emp.copy()
-                            emp_copy['#'] = idx
-                            forecast_with_index.append({'#': idx, **{k: v for k, v in emp_copy.items() if k != '#'}})
-                        df_forecast = pd.DataFrame(forecast_with_index)
-                        # Select columns with # first
-                        display_cols = ['#', "employee_id", "current_workload", "forecasted_capacity", 
-                                      "available_capacity", "utilization_rate"]
-                        st.dataframe(df_forecast[display_cols], use_container_width=True)
-        
-        with sub_tab2:
-            st.markdown("#### Project Risk Forecasting")
-            
-            projects = st.session_state.data_manager.load_data("projects") or []
-            selected_project = st.selectbox("Select Project",
-                                           ["-- Choose project --"] + [f"{p.get('name')} (ID: {p.get('id')})" for p in projects],
-                                           key="risk_forecast_project")
-            
-            if selected_project and selected_project != "-- Choose project --" and st.button("⚠️ Analyze Project Risk"):
-                project_id = selected_project.split("ID: ")[1].split(")")[0]
-                risk_forecast = agents["predictive_analytics_agent"].forecast_project_risk(project_id)
-                
-                if risk_forecast.get("success") is False:
-                    st.error(risk_forecast.get("error", "Failed to analyze risk"))
-                else:
-                    st.success("✅ Risk analysis completed!")
-                    
-                    risk_level = risk_forecast.get("risk_level", "low")
-                    risk_emoji = {"high": "🔴", "medium": "🟡", "low": "🟢"}
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Completion Rate", f"{risk_forecast.get('completion_rate', 0):.1f}%")
-                    with col2:
-                        st.metric("Risk Score", f"{risk_forecast.get('overall_risk_score', 0):.1f}/100")
-                    with col3:
-                        st.metric("Risk Level", f"{risk_emoji.get(risk_level, '⚪')} {risk_level.title()}")
-                    
-                    st.markdown("**Risk Breakdown:**")
-                    st.write(f"- **Deadline Risk:** {risk_forecast.get('deadline_risk', 'N/A').title()}")
-                    st.write(f"- **Resource Risk:** {risk_forecast.get('resource_risk', 'N/A').title()}")
-                    
-                    st.markdown("**Recommendations:**")
-                    for rec in risk_forecast.get("recommendations", []):
-                        st.write(f"- {rec}")
-    
-    with tab3:
-        st.subheader("Correlation Analysis Between Metrics")
-        st.markdown("Analyze relationships between different performance metrics")
-        
-        employees = st.session_state.data_manager.load_data("employees") or []
-        selected_employees = st.multiselect("Select Employees (leave empty for all)",
-                                            [e.get("name") for e in employees],
-                                            key="correlation_employees_select")
-        
-        available_metrics = [
-            "performance_score",
-            "completion_rate",
-            "on_time_rate",
-            "total_tasks",
-            "completed_tasks",
-            "overdue_tasks"
-        ]
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            metric1 = st.selectbox("First Metric", available_metrics, key="correlation_metric1")
-        with col2:
-            metric2 = st.selectbox("Second Metric", available_metrics, key="correlation_metric2")
-        
-        if metric1 == metric2:
-            st.warning("⚠️ Please select two different metrics")
-        elif st.button("🔗 Analyze Correlation"):
-            # Convert selected employee names to IDs
-            selected_employee_ids = None
-            if selected_employees:
-                selected_employee_ids = [next((e.get('id') for e in employees if e.get('name') == name), None) for name in selected_employees]
-                selected_employee_ids = [eid for eid in selected_employee_ids if eid]  # Remove None values
-            
-            correlation_result = agents["correlation_agent"].analyze_correlation(
-                metric1, metric2, selected_employee_ids if selected_employee_ids else None
-            )
-            
-            if correlation_result.get("success"):
-                st.success("✅ Correlation analysis completed!")
-                
-                corr_coef = correlation_result.get("correlation_coefficient", 0)
-                strength = correlation_result.get("correlation_strength", "unknown")
-                direction = correlation_result.get("correlation_direction", "none")
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Correlation Coefficient", f"{corr_coef:.4f}")
-                with col2:
-                    st.metric("Strength", strength.title())
-                with col3:
-                    st.metric("Direction", direction.title())
-                
-                st.info(f"💡 **Interpretation:** {correlation_result.get('interpretation', 'N/A')}")
-                
-                # Visualization
-                if correlation_result.get("data"):
-                    corr_data = correlation_result["data"]
-                    # Add index column
-                    corr_with_index = []
-                    for idx, item in enumerate(corr_data, start=1):
-                        item_copy = item.copy()
-                        item_copy['#'] = idx
-                        corr_with_index.append({'#': idx, **{k: v for k, v in item_copy.items() if k != '#'}})
-                    df_corr = pd.DataFrame(corr_with_index)
-                    # Reorder columns to put # first
-                    cols = ['#'] + [col for col in df_corr.columns if col != '#']
-                    df_corr = df_corr[cols]
-                    fig = px.scatter(df_corr, x=metric1, y=metric2,
-                                    hover_data=["employee_name"],
-                                    title=f"Correlation: {metric1} vs {metric2}",
-                                    labels={metric1: metric1.replace("_", " ").title(),
-                                           metric2: metric2.replace("_", " ").title()},
-                                    color_discrete_sequence=['#00E0FF'])
-                    fig.update_traces(marker=dict(size=10, color='#00E0FF'))
-                    fig.update_layout(
-                        plot_bgcolor='#111729',
-                        paper_bgcolor='#111729',
-                        font_color='#FFFFFF',
-                        xaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)'),
-                        yaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)')
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Data table
-                    st.subheader("Data Points")
-                    st.dataframe(df_corr, use_container_width=True)
-            else:
-                st.error(correlation_result.get("error", "Failed to analyze correlation"))
-    
-    with tab4:
-        st.subheader("Interactive Trend Analysis")
-        st.markdown("View performance trends over time with drill-down capabilities")
-        
-        employees = st.session_state.data_manager.load_data("employees") or []
-        selected_employee = st.selectbox("Select Employee",
-                                        ["-- Choose employee --"] + [e.get('name') for e in employees],
-                                        key="trend_analysis_employee")
-        
-        if selected_employee and selected_employee != "-- Choose employee --":
-            # Find employee ID by name
-            employee = next((e for e in employees if e.get('name') == selected_employee), None)
-            employee_id = employee.get('id') if employee else None
-            if not employee_id:
-                st.error(f"Employee '{selected_employee}' not found")
-                return
-            
-            # Get performance history
-            history = agents["performance_agent"].get_employee_performance_history(employee_id)
-            
-            if len(history) > 1:
-                df_history = pd.DataFrame(history)
-                df_history['evaluated_at'] = pd.to_datetime(df_history['evaluated_at'])
-                
-                # Metric selection
-                metric_options = {
-                    "Performance Score": "performance_score",
-                    "Completion Rate": "completion_rate",
-                    "On-Time Rate": "on_time_rate",
-                    "Total Tasks": "total_tasks",
-                    "Completed Tasks": "completed_tasks"
-                }
-                
-                selected_metric = st.selectbox("Select Metric to Analyze", list(metric_options.keys()), key="trend_metric_select")
-                metric_key = metric_options[selected_metric]
-                
-                # Chart type
-                chart_type = st.radio("Chart Type", ["Line", "Bar", "Area"], horizontal=True, key="chart_type_radio")
-                
-                # Generate chart
-                if chart_type == "Line":
-                    fig = px.line(df_history, x="evaluated_at", y=metric_key,
-                                title=f"{selected_metric} Trend Over Time",
-                                labels={"evaluated_at": "Date", metric_key: selected_metric},
-                                color_discrete_sequence=['#00E0FF'])
-                    fig.update_traces(mode='lines+markers', line=dict(width=3, color='#00E0FF'), marker=dict(size=8, color='#14F1FF'))
-                elif chart_type == "Bar":
-                    fig = px.bar(df_history, x="evaluated_at", y=metric_key,
-                               title=f"{selected_metric} Trend Over Time",
-                               labels={"evaluated_at": "Date", metric_key: selected_metric},
-                               color_discrete_sequence=['#00E0FF'])
-                else:  # Area
-                    fig = px.area(df_history, x="evaluated_at", y=metric_key,
-                                title=f"{selected_metric} Trend Over Time",
-                                labels={"evaluated_at": "Date", metric_key: selected_metric},
-                                color_discrete_sequence=['#00E0FF'])
-                
-                fig.update_layout(
-                    hovermode='x unified', 
-                    xaxis_title="Date", 
-                    yaxis_title=selected_metric,
-                    plot_bgcolor='#111729',
-                    paper_bgcolor='#111729',
-                    font_color='#FFFFFF',
-                    xaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)'),
-                    yaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)')
-                )
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Multi-metric comparison
-                st.subheader("Multi-Metric Comparison")
-                selected_metrics = st.multiselect("Select Metrics to Compare",
-                                                 list(metric_options.keys()),
-                                                 default=["Performance Score", "Completion Rate"],
-                                                 key="trend_metrics_multiselect")
-                
-                if selected_metrics:
-                    fig_multi = go.Figure()
-                    colors = ['#00E0FF', '#14F1FF', '#3B82F6', '#00FFA6']
-                    for i, metric_name in enumerate(selected_metrics):
-                        metric_key = metric_options[metric_name]
-                        fig_multi.add_trace(go.Scatter(
-                            x=df_history['evaluated_at'],
-                            y=df_history[metric_key],
-                            mode='lines+markers',
-                            name=metric_name,
-                            line=dict(width=3, color=colors[i % len(colors)]),
-                            marker=dict(size=8, color=colors[i % len(colors)])
-                        ))
-                    
-                    fig_multi.update_layout(
-                        title="Multi-Metric Trend Comparison",
-                        xaxis_title="Date",
-                        yaxis_title="Value",
-                        hovermode='x unified',
-                        plot_bgcolor='#111729',
-                        paper_bgcolor='#111729',
-                        font_color='#FFFFFF',
-                        xaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)'),
-                        yaxis=dict(gridcolor='rgba(255, 255, 255, 0.04)', linecolor='rgba(255, 255, 255, 0.08)')
-                    )
-                    st.plotly_chart(fig_multi, use_container_width=True)
-                
-                # Export chart
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("📥 Export Chart Data (CSV)"):
-                        csv = df_history.to_csv(index=False)
-                        st.download_button("Download CSV", csv, 
-                                         file_name=f"trend_data_{employee_id}_{datetime.now().strftime('%Y%m%d')}.csv",
-                                         mime="text/csv")
-            else:
-                st.info("Not enough historical data for trend analysis")
-    
-    with tab5:
-        employees = st.session_state.data_manager.load_data("employees") or []
-        selected_employee = st.selectbox("Select Employee for Insights", 
-                                        ["-- Choose employee --"] + [e.get('name') for e in employees],
-                                        key="insights_employee")
-        
-        if selected_employee and selected_employee != "-- Choose employee --":
-            # Find employee ID by name
-            employee = next((e for e in employees if e.get('name') == selected_employee), None)
-            employee_id = employee.get('id') if employee else None
-            if not employee_id:
-                st.error(f"Employee '{selected_employee}' not found")
-                return
-            if st.button("Generate Insights"):
-                insights = agents["enhanced_ai_agent"].generate_growth_insights(employee_id)
-                st.subheader("Growth Insights")
-                display_as_table(insights)
-        
-        st.markdown("---")
-        
-        # Performance prediction
-        employees = st.session_state.data_manager.load_data("employees") or []
-        selected_employee = st.selectbox("Select Employee for Prediction", 
-                                        ["-- Choose employee --"] + [e.get('name') for e in employees],
-                                        key="pred_employee")
-        months = st.slider("Months to Predict", 1, 6, 3, key="prediction_months_slider")
-        
-        if selected_employee and selected_employee != "-- Choose employee --":
-            # Find employee ID by name
-            employee = next((e for e in employees if e.get('name') == selected_employee), None)
-            employee_id = employee.get('id') if employee else None
-            if not employee_id:
-                st.error(f"Employee '{selected_employee}' not found")
-                return
-            if st.button("Predict Performance"):
-                prediction = agents["enhanced_ai_agent"].predict_performance_trend(employee_id, months)
-                st.subheader("Performance Prediction")
-                display_as_table(prediction)
-
-# Risks page
-def risks_page():
-    """Risk detection page"""
-    st.title("⚠️ Risk Detection")
-    st.markdown("---")
-    
-    agents = initialize_agents()
-    
-    if st.button("Detect All Risks"):
-        with st.spinner("Detecting risks..."):
-            risks = agents["risk_agent"].detect_all_risks()
-            
-            st.metric("Total Risks Detected", len(risks))
-            
-            # Group by severity
-            high_risks = [r for r in risks if r.get("severity") == "high"]
-            medium_risks = [r for r in risks if r.get("severity") == "medium"]
-            low_risks = [r for r in risks if r.get("severity") == "low"]
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("High", len(high_risks), delta=None)
-            with col2:
-                st.metric("Medium", len(medium_risks), delta=None)
-            with col3:
-                st.metric("Low", len(low_risks), delta=None)
-            
-            st.markdown("---")
-            
-            # Display risks
-            for risk in risks:
-                severity_color = {"high": "🔴", "medium": "🟡", "low": "🟢"}
-                st.markdown(f"{severity_color.get(risk.get('severity'), '⚪')} **{risk.get('type')}** - {risk.get('description')}")
-                with st.expander("Details"):
-                    display_as_table(risk)
+        st.markdown("### 📊 Project Reports")
+        st.info("Project reports feature coming soon.")
 
 # Goals page
 def goals_page():
@@ -4415,1642 +3091,524 @@ def goals_page():
     st.title("🎯 Goals")
     st.markdown("---")
     
-    # Role-based access control
-    user_role = st.session_state.user.get("role", "employee")
-    user_email = st.session_state.user.get("email")
-    
     agents = initialize_agents()
     goal_agent = agents["goal_agent"]
+    data_manager = st.session_state.data_manager
+    user_role = st.session_state.user.get("role", "employee")
+    user_id = st.session_state.user.get("id")
+    user_email = st.session_state.user.get("email")
     
-    # Check if we should show view after creation
-    show_view_after_create = st.session_state.get("show_goals_view", False)
+    employees = data_manager.load_data("employees") or []
+    current_employee = next((e for e in employees if e.get("id") == user_id or e.get("email") == user_email), None)
     
-    if show_view_after_create:
-        st.session_state.show_goals_view = False
-        st.success("✅ Goal created successfully! Viewing all goals below.")
-        st.markdown("---")
-        # Show view content immediately
-        goals = goal_agent.get_all_goals()
-        if goals:
-            for goal in goals:
-                progress = goal.get("progress_percentage", 0)
-                st.progress(progress / 100)
-                st.write(f"**{goal.get('title')}** - {goal.get('status')} ({progress:.1f}%)")
-                with st.expander("Details"):
-                    display_as_table(goal)
-        st.markdown("---")
-        st.markdown("### Or use tabs below to navigate")
+    # Get goals
+    all_goals = goal_agent.get_all_goals()
     
-    # Role-based tab visibility - Employees cannot create goals
     if user_role == "employee":
-        tabs = st.tabs(["View Goals"])
-        tab1 = tabs[0]
-        tab2 = None
-    else:
-        tabs = st.tabs(["View Goals", "Create Goal"])
-        tab1 = tabs[0]
-        tab2 = tabs[1]
-    
-    with tab1:
-        # Role-based goal filtering
-        employee_id = None
-        if user_role == "employee":
-            # Employees only see their own goals
-            employee = next((e for e in st.session_state.data_manager.load_data("employees") or [] if e.get("email") == user_email), None)
-            if employee:
-                employee_id = employee.get("id")
-                goals = goal_agent.get_employee_goals(employee_id)
-                st.info("👤 Showing only your goals")
-            else:
-                goals = []
-                st.error("❌ Employee record not found.")
+        # Show only employee's goals
+        my_goals = [g for g in all_goals if str(g.get("employee_id", "")) == str(current_employee.get("id") if current_employee else "") or str(g.get("user_id", "")) == str(current_employee.get("id") if current_employee else "")]
+        
+        st.markdown("### My Goals")
+        if my_goals:
+            for goal in my_goals:
+                with st.expander(f"🎯 {goal.get('title', 'Untitled')} - {goal.get('status', 'active').title()}"):
+                    st.write(f"**Description:** {goal.get('description', 'No description')}")
+                    progress = goal.get('progress_percentage', 0) if 'progress_percentage' in goal else (
+                        (goal.get('current_value', 0) / goal.get('target_value', 1) * 100) if goal.get('target_value', 0) > 0 else 0
+                    )
+                    st.progress(progress / 100)
+                    st.write(f"**Progress:** {progress:.1f}% ({goal.get('current_value', 0)} / {goal.get('target_value', 100)})")
+                    if goal.get('deadline') or goal.get('target_date'):
+                        deadline = goal.get('deadline') or goal.get('target_date')
+                        st.write(f"**Deadline:** {deadline}")
         else:
-            # Managers and owners see all goals
-            goals = goal_agent.get_all_goals()
+            st.info("No goals set yet.")
         
-        # Load employees for name lookup
-        employees = st.session_state.data_manager.load_data("employees") or []
-        employee_lookup = {e.get("id"): e.get("name", "Unknown") for e in employees}
-        
-        if goals:
-            # Handle edit forms first
-            for goal in goals:
-                goal_id = goal.get('id')
-                if st.session_state.get(f"editing_goal_{goal_id}", False):
-                    with st.expander(f"✏️ Editing: {goal.get('title', 'Untitled Goal')}", expanded=True):
-                        with st.form(f"edit_goal_form_{goal_id}"):
-                            # Role-based editing restrictions
-                            if user_role == "employee":
-                                # Employees can only update current value (progress) and add notes
-                                st.info("💡 You can update the progress (current value) and add progress notes for your goals.")
-                                st.write(f"**Goal:** {goal.get('title', 'Untitled Goal')}")
-                                st.write(f"**Target:** {goal.get('target_value', 0)}")
-                                st.write(f"**Current Progress:** {goal.get('progress_percentage', 0):.1f}%")
-                                edit_title = goal.get('title', '')
-                                edit_description = goal.get('description', '')
-                                edit_target = goal.get('target_value', 100)
-                                edit_current = st.number_input("Current Value (Progress)", min_value=0.0, value=float(goal.get('current_value', 0)), help="Update how close you are to completing this goal")
-                                progress_notes = st.text_area("Progress Notes (Optional)", placeholder="Add notes about your progress, achievements, or challenges...", help="Document your progress, achievements, or any challenges you're facing", key=f"progress_notes_{goal_id}")
-                                edit_deadline = None
-                            else:
-                                # Managers and owners can edit all fields
-                                edit_title = st.text_input("Goal Title", value=goal.get('title', ''))
-                                edit_description = st.text_area("Description", value=goal.get('description', ''))
-                                edit_target = st.number_input("Target Value", min_value=0.0, value=float(goal.get('target_value', 100)))
-                                edit_current = st.number_input("Current Value", min_value=0.0, value=float(goal.get('current_value', 0)))
-                                edit_deadline = st.date_input("Deadline",
-                                                             value=datetime.fromisoformat(goal.get('deadline')) if goal.get('deadline') else None)
-                                progress_notes = None  # Managers don't use progress notes in this form
-                            
-                            col_save, col_cancel = st.columns(2)
-                            with col_save:
-                                if st.form_submit_button("💾 Save Changes"):
-                                    # Role-based update restrictions
-                                    if user_role == "employee":
-                                        # Employees can update current value and add notes using goal_agent method
-                                        result = goal_agent.update_goal_progress(goal_id, edit_current, progress_notes.strip() if progress_notes and progress_notes.strip() else None)
-                                        if result.get("success"):
-                                            st.success("✅ Goal progress updated!")
-                                            st.session_state[f"editing_goal_{goal_id}"] = False
-                                            st.rerun()
-                                        else:
-                                            st.error(f"Error: {result.get('error', 'Failed to update goal')}")
-                                            st.rerun()
-                                        return
-                                    else:
-                                        # Managers/owners can update all fields
-                                        goal['title'] = edit_title
-                                        goal['description'] = edit_description
-                                        goal['target_value'] = edit_target
-                                        goal['current_value'] = edit_current
-                                        if edit_deadline:
-                                            goal['deadline'] = edit_deadline.isoformat()
-                                    # Recalculate progress
-                                    if edit_target > 0:
-                                        goal['progress_percentage'] = min(100, (edit_current / edit_target) * 100)
-                                    else:
-                                        goal['progress_percentage'] = 0
-                                    # Update status
-                                    if goal['progress_percentage'] >= 100:
-                                        goal['status'] = "completed"
-                                    elif goal.get('deadline') and datetime.fromisoformat(goal['deadline']) < datetime.now():
-                                        goal['status'] = "overdue"
-                                    else:
-                                        goal['status'] = "active"
-                                    goals = goal_agent.get_all_goals()
-                                    for i, g in enumerate(goals):
-                                        if g.get('id') == goal_id:
-                                            goals[i] = goal
-                                            break
-                                    goal_agent.data_manager.save_data("goals", goals)
-                                    st.session_state[f"editing_goal_{goal_id}"] = False
-                                    st.success("Goal updated!")
-                                    st.rerun()
-                            with col_cancel:
-                                if st.form_submit_button("❌ Cancel"):
-                                    st.session_state[f"editing_goal_{goal_id}"] = False
-                                    st.rerun()
+        # Create new goal
+        st.markdown("---")
+        st.markdown("### Create New Goal")
+        with st.form("create_goal_form"):
+            goal_title = st.text_input("Goal Title *")
+            goal_description = st.text_area("Description")
+            target_value = st.number_input("Target Value", min_value=1, value=100)
+            deadline = st.date_input("Deadline", value=datetime.now().date() + timedelta(days=30))
             
-            # For managers/owners: Group goals by employee
-            if user_role != "employee":
-                # Group goals by employee_id
-                goals_by_employee = {}
-                for goal in goals:
-                    emp_id = goal.get("employee_id", "unknown")
-                    if emp_id not in goals_by_employee:
-                        goals_by_employee[emp_id] = []
-                    goals_by_employee[emp_id].append(goal)
+            if st.form_submit_button("Create Goal"):
+                if goal_title and current_employee:
+                    goal_data = {
+                        "employee_id": current_employee.get("id"),
+                        "title": goal_title,
+                        "description": goal_description,
+                        "target_value": target_value,
+                        "deadline": deadline.isoformat()
+                    }
+                    result = goal_agent.create_goal(goal_data)
+                    if result.get("success"):
+                        st.success("✅ Goal created successfully!")
+                        st.rerun()
+                    else:
+                        st.error(f"Error: {result.get('error', 'Unknown error')}")
+    else:
+        # Managers/owners can create goals for employees and view all goals
+        st.markdown("### ➕ Create Goal for Employee")
+        with st.form("create_goal_manager_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                # Employee selection
+                employee_options = {f"{e.get('name', 'Unknown')} ({e.get('email', 'N/A')})": e.get("id") for e in employees}
+                if employee_options:
+                    selected_employee = st.selectbox("Select Employee *", list(employee_options.keys()), 
+                                                     help="Choose the employee for this goal")
+                    selected_employee_id = employee_options[selected_employee]
+                else:
+                    st.warning("No employees found")
+                    selected_employee_id = None
                 
-                # Display goals grouped by employee
-                for emp_id, employee_goals in goals_by_employee.items():
-                    employee_name = employee_lookup.get(emp_id, f"Employee {emp_id}")
-                    with st.expander(f"👤 {employee_name} ({len(employee_goals)} goal(s))", expanded=True):
-                        # Table header for this employee
-                        header_cols = st.columns([2, 1, 1, 1, 1, 1.5])
-                        with header_cols[0]:
-                            st.markdown("**Title**")
-                        with header_cols[1]:
-                            st.markdown("**Status**")
-                        with header_cols[2]:
-                            st.markdown("**Progress**")
-                        with header_cols[3]:
-                            st.markdown("**Current/Target**")
-                        with header_cols[4]:
-                            st.markdown("**Deadline**")
-                        with header_cols[5]:
-                            st.markdown("**Actions**")
-                        
-                        st.markdown("---")
-                        
-                        # Table rows for this employee's goals
-                        for idx, goal in enumerate(employee_goals, start=1):
-                            goal_id = goal.get('id')
-                            title = goal.get('title', 'Untitled Goal')
-                            status = goal.get('status', 'N/A')
-                            progress = goal.get("progress_percentage", 0)
-                            current = goal.get('current_value', 0)
-                            target = goal.get('target_value', 0)
-                            deadline = goal.get('deadline', 'N/A')[:10] if goal.get('deadline') else 'N/A'
-                            
-                            row_cols = st.columns([2, 1, 1, 1, 1, 1.5])
-                            with row_cols[0]:
-                                st.write(f"**{title}**")
-                                # Show notes indicator if notes exist
-                                if goal.get('notes') and len(goal.get('notes', [])) > 0:
-                                    st.caption(f"📝 {len(goal.get('notes', []))} progress note(s)")
-                            with row_cols[1]:
-                                st.write(status)
-                            with row_cols[2]:
-                                st.progress(progress / 100)
-                                st.write(f"{progress:.1f}%")
-                            with row_cols[3]:
-                                st.write(f"{current}/{target}")
-                            with row_cols[4]:
-                                st.write(deadline)
-                            with row_cols[5]:
-                                # Managers and owners can edit/delete any goal
-                                btn_col1, btn_col2 = st.columns(2)
-                                with btn_col1:
-                                    if st.button("✏️ Edit", key=f"manager_edit_btn_{idx}_{goal_id}", use_container_width=True):
-                                        st.session_state[f"editing_goal_{goal_id}"] = True
-                                        st.rerun()
-                                with btn_col2:
-                                    if st.button("🗑️ Del", key=f"manager_delete_btn_{idx}_{goal_id}", use_container_width=True, type="secondary"):
-                                        if goal_agent.delete_goal(goal_id):
-                                            st.success("Goal deleted!")
-                                        st.rerun()
-                            
-                            # Show progress notes if they exist
-                            if goal.get('notes') and len(goal.get('notes', [])) > 0:
-                                with st.expander(f"> View Progress Notes ({len(goal.get('notes', []))} note(s))"):
-                                    for note_entry in goal.get('notes', []):
-                                        note_text = note_entry.get('note', '')
-                                        note_time = note_entry.get('timestamp', 'N/A')
-                                        note_author = note_entry.get('added_by', 'Employee')
-                                        st.markdown(f"""
-                                        <div style="background-color: rgba(0, 224, 255, 0.1); padding: 12px; border-radius: 8px; margin: 8px 0; border-left: 3px solid #00E0FF;">
-                                            <strong>{note_author}</strong> - <small>{note_time[:19] if note_time != 'N/A' else 'N/A'}</small><br>
-                                            {note_text}
-                                        </div>
-                                        """, unsafe_allow_html=True)
-                            
-                            st.markdown("---")
-            else:
-                # For employees: Show their goals in a simple table (no grouping needed)
-                # Table header
-                header_cols = st.columns([2, 1, 1, 1, 1, 1.5])
-                with header_cols[0]:
-                    st.markdown("**Title**")
-                with header_cols[1]:
-                    st.markdown("**Status**")
-                with header_cols[2]:
-                    st.markdown("**Progress**")
-                with header_cols[3]:
-                    st.markdown("**Current/Target**")
-                with header_cols[4]:
-                    st.markdown("**Deadline**")
-                with header_cols[5]:
-                    st.markdown("**Actions**")
-                
-                st.markdown("---")
-                
-                # Table rows with action buttons
-                for idx, goal in enumerate(goals, start=1):
-                    goal_id = goal.get('id')
-                    title = goal.get('title', 'Untitled Goal')
-                    status = goal.get('status', 'N/A')
-                    progress = goal.get("progress_percentage", 0)
-                    current = goal.get('current_value', 0)
-                    target = goal.get('target_value', 0)
-                    deadline = goal.get('deadline', 'N/A')[:10] if goal.get('deadline') else 'N/A'
-                    
-                    row_cols = st.columns([2, 1, 1, 1, 1, 1.5])
-                    with row_cols[0]:
-                        st.write(f"**{title}**")
-                        # Show notes indicator if notes exist
-                        if goal.get('notes') and len(goal.get('notes', [])) > 0:
-                            st.caption(f"📝 {len(goal.get('notes', []))} progress note(s)")
-                    with row_cols[1]:
-                        st.write(status)
-                    with row_cols[2]:
-                        st.progress(progress / 100)
-                        st.write(f"{progress:.1f}%")
-                    with row_cols[3]:
-                        st.write(f"{current}/{target}")
-                    with row_cols[4]:
-                        st.write(deadline)
-                    with row_cols[5]:
-                        # Employees can only update progress of their own goals
-                        if employee_id and goal.get("employee_id") == employee_id:
-                            if st.button("✏️ Update Progress", key=f"employee_edit_btn_{idx}_{goal_id}", use_container_width=True):
-                                st.session_state[f"editing_goal_{goal_id}"] = True
-                                st.rerun()
-                        else:
-                            st.write("View Only")
-                    
-                    # Show progress notes if they exist
-                    if goal.get('notes') and len(goal.get('notes', [])) > 0:
-                        with st.expander(f"> View Progress Notes ({len(goal.get('notes', []))} note(s))"):
-                            for note_entry in goal.get('notes', []):
-                                note_text = note_entry.get('note', '')
-                                note_time = note_entry.get('timestamp', 'N/A')
-                                note_author = note_entry.get('added_by', 'Employee')
-                                st.markdown(f"""
-                                <div style="background-color: rgba(0, 224, 255, 0.1); padding: 12px; border-radius: 8px; margin: 8px 0; border-left: 3px solid #00E0FF;">
-                                    <strong>{note_author}</strong> - <small>{note_time[:19] if note_time != 'N/A' else 'N/A'}</small><br>
-                                    {note_text}
-                                </div>
-                                """, unsafe_allow_html=True)
-        else:
-            st.info("No goals found")
-    
-    # Only show Create Goal tab for managers and owners
-    if tab2 is not None:
-        with tab2:
-            employees = st.session_state.data_manager.load_data("employees") or []
-            with st.form("create_goal"):
-                # Managers and owners can select any employee - show names instead of IDs
-                employee_options = {e.get('name'): e.get("id") for e in employees}
-                selected_employee_name = st.selectbox("Employee", ["-- Choose employee --"] + list(employee_options.keys()), key="create_goal_employee")
-                employee_id = employee_options.get(selected_employee_name) if selected_employee_name and selected_employee_name != "-- Choose employee --" else ""
-                
-                title = st.text_input("Goal Title *")
-                description = st.text_area("Description")
-                target_value = st.number_input("Target Value", min_value=0.0, value=100.0)
-                deadline = st.date_input("Deadline")
-                
-                if st.form_submit_button("Create Goal"):
-                    if title and employee_id:
-                        result = goal_agent.create_goal({
-                            "employee_id": employee_id,
-                            "title": title,
-                            "description": description,
-                            "target_value": target_value,
-                            "deadline": deadline.isoformat() if deadline else None
-                        })
-                        if result.get("success"):
-                            st.session_state.show_goals_view = True
-                    st.rerun()
+                goal_title = st.text_input("Goal Title *", placeholder="e.g., Complete training course", 
+                                          help="Enter a clear, measurable goal title")
+                target_value = st.number_input("Target Value", min_value=1, value=100, 
+                                              help="The target number to achieve")
+            
+            with col2:
+                goal_type = st.selectbox("Goal Type", ["quantitative", "qualitative", "skill_based"],
+                                        help="Type of goal: quantitative (numbers), qualitative (quality), or skill-based")
+                deadline = st.date_input("Deadline", value=datetime.now().date() + timedelta(days=30),
+                                       help="When should this goal be completed?")
+            
+            goal_description = st.text_area("Description", placeholder="Describe what needs to be achieved, why it's important, and how success will be measured...",
+                                          height=100, help="Detailed description of the goal")
+            
+            st.markdown("---")
+            
+            if st.form_submit_button("🎯 Create Goal", use_container_width=True, type="primary"):
+                if goal_title and selected_employee_id:
+                    goal_data = {
+                        "employee_id": selected_employee_id,
+                        "title": goal_title,
+                        "description": goal_description,
+                        "target_value": target_value,
+                        "deadline": deadline.isoformat(),
+                        "goal_type": goal_type
+                    }
+                    result = goal_agent.create_goal(goal_data)
+                    if result.get("success"):
+                        st.success("✅ Goal created successfully!")
+                        st.balloons()
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Error: {result.get('error', 'Unknown error')}")
+                else:
+                    st.error("⚠️ Please select an employee and enter a goal title.")
         
+        st.markdown("---")
+        st.markdown("### 📊 All Employee Goals")
+        
+        if all_goals:
+            # Group goals by employee
+            goals_by_employee = {}
+            for goal in all_goals:
+                emp_id = str(goal.get("employee_id", "")) or str(goal.get("user_id", ""))
+                if emp_id not in goals_by_employee:
+                    goals_by_employee[emp_id] = []
+                goals_by_employee[emp_id].append(goal)
+            
+            for emp_id, emp_goals in goals_by_employee.items():
+                emp = next((e for e in employees if str(e.get("id")) == emp_id), None)
+                emp_name = emp.get("name", "Unknown") if emp else "Unknown"
+                emp_email = emp.get("email", "N/A") if emp else "N/A"
+                
+                st.markdown(f"#### 👤 {emp_name} ({emp_email})")
+                
+                for goal in emp_goals:
+                    with st.expander(f"🎯 {goal.get('title', 'Untitled')} - {goal.get('status', 'active').title()}", expanded=False):
+                        col_info1, col_info2 = st.columns(2)
+                        with col_info1:
+                            st.write(f"**Description:** {goal.get('description', 'No description')}")
+                            st.write(f"**Type:** {goal.get('goal_type', 'quantitative').title()}")
+                        with col_info2:
+                            progress = goal.get('progress_percentage', 0) if 'progress_percentage' in goal else (
+                                (goal.get('current_value', 0) / goal.get('target_value', 1) * 100) if goal.get('target_value', 0) > 0 else 0
+                            )
+                            st.progress(progress / 100)
+                            st.write(f"**Progress:** {progress:.1f}% ({goal.get('current_value', 0)} / {goal.get('target_value', 100)})")
+                            if goal.get('deadline') or goal.get('target_date'):
+                                deadline_str = goal.get('deadline') or goal.get('target_date')
+                                st.write(f"**Deadline:** {deadline_str}")
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+        else:
+            st.info("📭 No goals found. Create goals for your team members above.")
+
 # Feedback page
 def feedback_page():
     """Feedback management page"""
-    st.title("💬 Feedback & Communication")
+    st.title("💬 Feedback")
     st.markdown("---")
     
     agents = initialize_agents()
     feedback_agent = agents["feedback_agent"]
+    data_manager = st.session_state.data_manager
     user_role = st.session_state.user.get("role", "employee")
+    user_id = st.session_state.user.get("id")
     user_email = st.session_state.user.get("email")
     
-    # Check if we should show view after creation
-    show_view_after_create = st.session_state.get("show_feedback_view", False)
+    employees = data_manager.load_data("employees") or []
+    current_employee = next((e for e in employees if e.get("id") == user_id or e.get("email") == user_email), None)
     
-    if show_view_after_create:
-        st.session_state.show_feedback_view = False
-        st.success("✅ Feedback created successfully! Employee will be notified.")
-        st.markdown("---")
-    
-    # Different tabs based on role
-    if user_role == "owner" or user_role == "manager":
-        # Manager/Owner view
-        tab1, tab2, tab3 = st.tabs(["All Feedback", "Create Feedback", "Communications"])
-        
-        with tab1:
-            feedbacks = feedback_agent.get_all_feedbacks()
-            if feedbacks:
-                # Handle edit forms first
-                for feedback in feedbacks:
-                    feedback_id = feedback.get('id')
-                    if st.session_state.get(f"editing_feedback_{feedback_id}", False):
-                        with st.expander(f"✏️ Editing: {feedback.get('title', 'Untitled Feedback')}", expanded=True):
-                            with st.form(f"edit_feedback_form_{feedback_id}"):
-                                edit_title = st.text_input("Title", value=feedback.get('title', ''))
-                                edit_content = st.text_area("Content", value=feedback.get('content', ''))
-                                edit_category = st.selectbox("Category", ["performance", "behavior", "skills", "general"],
-                                                            index=["performance", "behavior", "skills", "general"].index(feedback.get('category', 'general')),
-                                                            key=f"edit_feedback_category_{feedback_id}")
-                                edit_status = st.selectbox("Status", ["pending_response", "responded", "closed"],
-                                                          index=["pending_response", "responded", "closed"].index(feedback.get('status', 'pending_response')),
-                                                          key=f"edit_feedback_status_{feedback_id}")
-                                
-                                col_save, col_cancel = st.columns(2)
-                                with col_save:
-                                    if st.form_submit_button("💾 Save Changes"):
-                                        feedback['title'] = edit_title
-                                        feedback['content'] = edit_content
-                                        feedback['category'] = edit_category
-                                        feedback['status'] = edit_status
-                                        feedback['updated_at'] = datetime.now().isoformat()
-                                        feedbacks = feedback_agent.get_all_feedbacks()
-                                        for i, f in enumerate(feedbacks):
-                                            if f.get('id') == feedback_id:
-                                                feedbacks[i] = feedback
-                                                break
-                                        feedback_agent.data_manager.save_data("feedback", feedbacks)
-                                        st.session_state[f"editing_feedback_{feedback_id}"] = False
-                                        st.success("Feedback updated!")
-                                        st.rerun()
-                                with col_cancel:
-                                    if st.form_submit_button("❌ Cancel"):
-                                        st.session_state[f"editing_feedback_{feedback_id}"] = False
-                                        st.rerun()
-                
-                # Table header
-                header_cols = st.columns([2, 1, 1, 1, 2, 1.5])
-                with header_cols[0]:
-                    st.markdown("**Title**")
-                with header_cols[1]:
-                    st.markdown("**Employee**")
-                with header_cols[2]:
-                    st.markdown("**Category**")
-                with header_cols[3]:
-                    st.markdown("**Status**")
-                with header_cols[4]:
-                    st.markdown("**Content**")
-                with header_cols[5]:
-                    st.markdown("**Actions**")
-                
-                st.markdown("---")
-                
-                # Load employees for name lookup
-                employees = st.session_state.data_manager.load_data("employees") or []
-                employee_lookup = {e.get("id"): e.get("name", "Unknown") for e in employees}
-                
-                # Table rows with action buttons
-                for idx, feedback in enumerate(feedbacks):
-                    feedback_id = feedback.get('id')
-                    title = feedback.get('title', 'Untitled Feedback')
-                    employee_id = feedback.get('employee_id', 'N/A')
-                    employee_name = employee_lookup.get(employee_id, employee_id)  # Show name instead of ID
-                    category = feedback.get('category', 'N/A')
-                    status = feedback.get('status', 'N/A')
-                    content = (feedback.get('content', '')[:50] + '...') if len(feedback.get('content', '')) > 50 else (feedback.get('content', '') or 'N/A')
-                    
-                    row_cols = st.columns([2, 1, 1, 1, 2, 1.5])
-                    with row_cols[0]:
-                        st.write(f"**{title}**")
-                    with row_cols[1]:
-                        st.write(employee_name)
-                    with row_cols[2]:
-                        st.write(category)
-                    with row_cols[3]:
-                        st.write(status)
-                    with row_cols[4]:
-                        st.write(content)
-                    with row_cols[5]:
-                        btn_col1, btn_col2 = st.columns(2)
-                        with btn_col1:
-                            if st.button("✏️ Edit", key=f"tab1_edit_btn_{idx}_{feedback_id}", use_container_width=True):
-                                st.session_state[f"editing_feedback_{feedback_id}"] = True
-                                st.rerun()
-                        with btn_col2:
-                            if st.button("🗑️ Del", key=f"tab1_delete_btn_{idx}_{feedback_id}", use_container_width=True, type="secondary"):
-                                feedbacks = feedback_agent.get_all_feedbacks()
-                                feedbacks = [f for f in feedbacks if f.get('id') != feedback_id]
-                                feedback_agent.data_manager.save_data("feedback", feedbacks)
-                                st.success("Feedback deleted!")
-                                st.rerun()
-            else:
-                st.info("No feedback found")
-        
-        with tab2:
-            employees = st.session_state.data_manager.load_data("employees") or []
-            with st.form("create_feedback"):
-                employee_id = st.selectbox("Employee", ["-- Choose employee --"] + [e.get("id") for e in employees], key="create_feedback_employee")
-                employee_id = employee_id if employee_id and employee_id != "-- Choose employee --" else ""
-                title = st.text_input("Title *")
-                content = st.text_area("Content *")
-                category = st.selectbox("Category", ["performance", "behavior", "skills", "general"], key="create_feedback_category")
-                
-                if st.form_submit_button("Create Feedback"):
-                    if employee_id and title and content and st.session_state.user:
-                        result = feedback_agent.create_feedback({
-                            "employee_id": employee_id,
-                            "given_by": st.session_state.user.get("email"),
-                            "title": title,
-                            "content": content,
-                            "category": category
-                        })
-                        if result.get("success"):
-                            st.session_state.show_feedback_view = True
-                            st.success("✅ Feedback created! Employee has been notified.")
-                            st.rerun()
-                
-        with tab3:
-            st.subheader("All Communications")
-            feedbacks = feedback_agent.get_all_feedbacks()
-            feedbacks_with_comm = [f for f in feedbacks if f.get('communications')]
-            if feedbacks_with_comm:
-                for feedback in feedbacks_with_comm:
-                    st.markdown(f"### {feedback.get('title')}")
-                    for comm in feedback.get('communications', []):
-                        sender_role = comm.get('sender_role', 'employee')
-                        bg_color = "#2a4a6a" if sender_role == "manager" else "#4a6a2a"
-                        st.markdown(f"""
-                        <div style="background-color: {bg_color}; padding: 10px; border-radius: 5px; margin: 5px 0;">
-                            <strong>{sender_role.title()}</strong> ({comm.get('sender_id')})<br>
-                            {comm.get('message')}<br>
-                            <small>{comm.get('timestamp', '')}</small>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    st.markdown("---")
-            else:
-                st.info("No communications yet")
-    else:
-        # Employee view
-        # Get employee record by email to get employee ID
-        employees = st.session_state.data_manager.load_data("employees") or []
-        employee = next((e for e in employees if e.get("email") == user_email), None)
-        
-        if not employee:
-            st.warning("⚠️ No employee record found. Please contact your administrator.")
-            return
-        
-        employee_id = str(employee.get("id"))
-        
-        # Get all feedbacks for the employee
-        my_feedbacks = feedback_agent.get_feedbacks_for_employee(employee_id)
+    if user_role == "employee":
+        # Show feedback received
+        st.markdown("### Feedback Received")
+        my_feedbacks = feedback_agent.get_feedbacks_for_employee(current_employee.get("id") if current_employee else "")
         
         if my_feedbacks:
-            st.write(f"**Total Feedback:** {len(my_feedbacks)}")
-            st.markdown("---")
-            
-            for idx, feedback in enumerate(my_feedbacks):
-                with st.container():
-                    feedback_id = feedback.get('id', str(idx))
-                    # Use index to ensure unique form keys even if feedback IDs are duplicated
-                    unique_key = f"{feedback_id}_{idx}"
+            for feedback in my_feedbacks:
+                reviewer = next((e for e in employees if str(e.get("id")) == str(feedback.get("given_by", "")) or str(e.get("id")) == str(feedback.get("reviewer_id", ""))), None)
+                reviewer_name = reviewer.get("name", "Unknown") if reviewer else (feedback.get("given_by", "Unknown") if feedback.get("is_anonymous") else "Unknown")
+                
+                with st.expander(f"💬 {feedback.get('title', 'Feedback')} from {reviewer_name} - {feedback.get('status', 'pending').title()}"):
+                    st.write(f"**Type:** {feedback.get('type', feedback.get('feedback_type', 'general')).title()}")
+                    if feedback.get('rating'):
+                        st.write(f"**Rating:** {feedback.get('rating')}/5")
+                    st.write(f"**Content:** {feedback.get('content', feedback.get('feedback_text', 'No content'))}")
                     
-                    st.markdown(f"### {feedback.get('title', 'Untitled Feedback')}")
-                    
-                    # Get sender information (handle both given_by and sender_id fields)
-                    sender = feedback.get('given_by') or feedback.get('sender_id', 'Unknown')
-                    category = feedback.get('category', 'N/A')
-                    status = feedback.get('status', 'N/A')
-                    
-                    # Format date if available
-                    created_at = feedback.get('created_at', '')
-                    date_display = ""
-                    if created_at:
-                        try:
-                            dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                            date_display = f" | **Date:** {dt.strftime('%Y-%m-%d')}"
-                        except:
-                            date_display = f" | **Date:** {created_at[:10] if len(created_at) >= 10 else ''}"
-                    
-                    st.write(f"**From:** {sender} | **Category:** {category} | **Status:** {status}{date_display}")
-                    st.write(f"**Content:** {feedback.get('content', 'N/A')}")
-                    
-                    # Communication thread
-                    communications = feedback.get('communications', [])
-                    if communications:
-                        st.markdown("#### 💬 Conversation:")
-                        for comm in communications:
-                            sender_role = comm.get('sender_role', 'employee')
-                            bg_color = "#2a4a6a" if sender_role in ["manager", "owner"] else "#4a6a2a"
-                            timestamp = comm.get('timestamp', '')
-                            # Format timestamp
-                            try:
-                                if timestamp:
-                                    dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                                    timestamp = dt.strftime('%Y-%m-%d %H:%M')
-                            except:
-                                pass
+                    if feedback.get('status') == 'pending_response':
+                        st.markdown("---")
+                        with st.form(f"respond_feedback_{feedback.get('id')}"):
+                            response = st.text_area("Your Response")
+                            acknowledged = st.checkbox("I acknowledge this feedback")
+                            action_plan = st.text_area("Action Plan (optional)")
                             
-                            st.markdown(f"""
-                            <div style="background-color: {bg_color}; padding: 10px; border-radius: 5px; margin: 5px 0;">
-                                <strong>{sender_role.title()}</strong> ({comm.get('sender_id')})<br>
-                                {comm.get('message')}<br>
-                                <small>{timestamp}</small>
-                            </div>
-                            """, unsafe_allow_html=True)
-                    
-                    # Employee can ask question directly in each feedback
-                    with st.expander("💬 Ask a Question to Manager"):
-                        with st.form(f"ask_question_form_{unique_key}"):
-                            question = st.text_area("Your Question", key=f"question_input_{unique_key}")
-                            if st.form_submit_button("Send Question"):
-                                if question:
-                                    result = feedback_agent.add_communication(
-                                        feedback_id,
-                                        user_email,
-                                        question,
-                                        "employee"
-                                    )
-                                    if result.get("success"):
-                                        st.success("✅ Question sent! Manager will be notified.")
-                                        st.rerun()
-                                    else:
-                                        st.error(result.get("error", "Failed to send question"))
-                                else:
-                                    st.warning("Please enter a question")
-                    
-                    st.markdown("---")
+                            if st.form_submit_button("Submit Response"):
+                                result = feedback_agent.respond_to_feedback(
+                                    feedback.get("id"),
+                                    {"response": response, "acknowledged": acknowledged, "action_plan": action_plan}
+                                )
+                                if result.get("success"):
+                                    st.success("✅ Response submitted!")
+                                    st.rerun()
         else:
-            st.info("No feedback received yet")
+            st.info("No feedback received yet.")
+    else:
+        # Managers can view all feedback and create new
+        st.markdown("### All Feedback")
+        all_feedbacks = feedback_agent.get_all_feedbacks()
+        
+        if all_feedbacks:
+            for feedback in all_feedbacks:
+                emp = next((e for e in employees if str(e.get("id")) == str(feedback.get("employee_id", ""))), None)
+                emp_name = emp.get("name", "Unknown") if emp else "Unknown"
+                
+                with st.expander(f"💬 {feedback.get('title', 'Feedback')} for {emp_name}"):
+                    st.write(f"**Employee:** {emp_name}")
+                    st.write(f"**Status:** {feedback.get('status', 'pending').title()}")
+                    st.write(f"**Content:** {feedback.get('content', feedback.get('feedback_text', 'No content'))}")
+        else:
+            st.info("No feedback found.")
+        
+        # Create feedback
+        st.markdown("---")
+        st.markdown("### Create Feedback")
+        with st.form("create_feedback_form"):
+            emp_options = {e.get("name", e.get("email", "Unknown")): e.get("id") for e in employees}
+            selected_emp = st.selectbox("Employee *", list(emp_options.keys()))
+            feedback_type = st.selectbox("Type", ["positive", "constructive", "general"])
+            rating = st.slider("Rating", 1, 5, 3)
+            content = st.text_area("Feedback Content *")
+            
+            if st.form_submit_button("Submit Feedback"):
+                if content:
+                    feedback_data = {
+                        "employee_id": emp_options[selected_emp],
+                        "given_by": current_employee.get("id") if current_employee else user_id,
+                        "type": feedback_type,
+                        "rating": rating,
+                        "content": content
+                    }
+                    result = feedback_agent.create_feedback(feedback_data)
+                    if result.get("success"):
+                        st.success("✅ Feedback submitted!")
+                        st.rerun()
+                    else:
+                        st.error(f"Error: {result.get('error', 'Unknown error')}")
 
-# Notifications & Alerts page (merged)
-def notifications_page():
-    """Unified Notifications & Alerts page"""
-    st.title("🔔 Notifications")
-    st.markdown("---")
+# Reports page
+def reports_page():
+    """Reports and analytics page - Professional PDF Reports"""
+    st.markdown("""
+        <div style="background: linear-gradient(135deg, #FF6B35 0%, #FF8C42 100%); padding: 2rem; border-radius: 16px; margin-bottom: 2rem;">
+            <h1 style="color: white; margin: 0; font-size: 2.5rem;">📊 Professional Reports</h1>
+            <p style="color: rgba(255,255,255,0.9); margin: 0.5rem 0 0 0;">Generate professional PDF documents for performance, projects, and analytics</p>
+        </div>
+    """, unsafe_allow_html=True)
     
     agents = initialize_agents()
-    notification_agent = agents["notification_agent"]
-    
-    user_role = st.session_state.user.get("role", "employee")
-    user_email = st.session_state.user.get("email")
-    
-    # Notifications display
-    if st.session_state.user:
-        # Get employee_id from email
-        employees = st.session_state.data_manager.load_data("employees") or []
-        employee = next((e for e in employees if e.get("email") == user_email), None)
-        
-        if user_role in ["owner", "manager"]:
-            # For owners/managers, show all notifications or allow selection
-            st.info("👔 Viewing all system notifications")
-            
-            # Get all notifications from all employees
-            all_notifications = []
-            for emp in employees:
-                emp_notifications = notification_agent.get_notifications(recipient=emp.get("id"), unread_only=False)
-                all_notifications.extend(emp_notifications)
-            
-            # Sort by created_at (most recent first)
-            all_notifications.sort(key=lambda x: x.get('created_at', ''), reverse=True)
-            
-            # Limit to last 10 notifications total
-            all_notifications = all_notifications[:10]
-            
-            unread_notifications = [n for n in all_notifications if not n.get("read", False)]
-            
-            st.metric("Unread Notifications", len(unread_notifications))
-            
-            # Show unread first, then read
-            if unread_notifications:
-                st.subheader("📬 Unread Notifications")
-                for idx, notification in enumerate(unread_notifications):
-                    # Get employee name for context
-                    emp_id = notification.get("recipient") or notification.get("employee_id")
-                    emp_name = next((e.get("name") for e in employees if str(e.get("id")) == str(emp_id)), "Unknown")
-                    
-                    with st.expander(f"> 🔴 {notification.get('title')} - {notification.get('notification_type', notification.get('type', 'info'))} (For: {emp_name})"):
-                        st.write(notification.get("message"))
-                        st.caption(f"Created: {notification.get('created_at', 'N/A')}")
-                        if st.button(f"Mark as Read", key=f"read_manager_{idx}_{notification.get('id')}"):
-                            notification_agent.mark_as_read(notification.get("id"))
-                            st.rerun()
-            
-            # Show read notifications
-            read_notifications = [n for n in all_notifications if n.get("read", False)]
-            if read_notifications:
-                st.markdown("---")
-                st.subheader("✓ Read Notifications")
-                for notification in read_notifications:
-                    emp_id = notification.get("recipient") or notification.get("employee_id")
-                    emp_name = next((e.get("name") for e in employees if str(e.get("id")) == str(emp_id)), "Unknown")
-                    
-                    with st.expander(f"> ✓ {notification.get('title')} - {notification.get('notification_type', notification.get('type', 'info'))} (For: {emp_name})"):
-                        st.write(notification.get("message"))
-                        st.caption(f"Read: {notification.get('read_at', 'N/A')}")
-            
-            if not all_notifications:
-                st.info("📭 No notifications found.")
-                
-        elif employee:
-            # Employee view - show only their notifications
-            employee_id = employee.get("id")
-            # Get notifications by employee_id (notifications use employee_id as recipient)
-            all_notifications = notification_agent.get_notifications(recipient=employee_id, unread_only=False)
-            
-            # Limit to last 10 notifications total
-            all_notifications = all_notifications[:10]
-            
-            unread_notifications = [n for n in all_notifications if not n.get("read", False)]
-            
-            st.metric("Unread Notifications", len(unread_notifications))
-            
-            # Show unread first, then read
-            if unread_notifications:
-                st.subheader("📬 Unread Notifications")
-                for idx, notification in enumerate(unread_notifications):
-                    with st.expander(f"> 🔴 {notification.get('title')} - {notification.get('notification_type', notification.get('type', 'info'))}"):
-                        st.write(notification.get("message"))
-                        st.caption(f"Created: {notification.get('created_at', 'N/A')}")
-                        if st.button(f"Mark as Read", key=f"read_unread_{idx}_{notification.get('id')}"):
-                            notification_agent.mark_as_read(notification.get("id"))
-                            st.rerun()
-            
-            # Show read notifications
-            read_notifications = [n for n in all_notifications if n.get("read", False)]
-            if read_notifications:
-                st.markdown("---")
-                st.subheader("✓ Read Notifications")
-                for notification in read_notifications:
-                    with st.expander(f"> ✓ {notification.get('title')} - {notification.get('notification_type', notification.get('type', 'info'))}"):
-                        st.write(notification.get("message"))
-                        st.caption(f"Read: {notification.get('read_at', 'N/A')}")
-            
-            if not all_notifications:
-                st.info("📭 No notifications found.")
-        else:
-            # User exists but no employee record - show info message instead of error
-            st.info("ℹ️ You don't have an employee record. Notifications are only available for employees.")
-                
-# Export page
-def export_page():
-    """Export page with enhanced features"""
-    st.title("📤 Export & Reports")
-    st.markdown("---")
-    
-    agents = initialize_agents()
+    reporting_agent = agents["reporting_agent"]
     export_agent = agents["export_agent"]
-    user_email = st.session_state.user.get("email")
+    data_manager = st.session_state.data_manager
+    user_role = st.session_state.user.get("role", "employee")
     
-    tab1, tab2, tab3 = st.tabs(["Export Data", "Performance Reports", "Scheduled Exports"])
+    # Import professional report generator
+    from components.agents.professional_report_generator import ProfessionalReportGenerator
+    report_generator = ProfessionalReportGenerator(data_manager)
     
-    with tab1:
-        st.subheader("Export Data to CSV or PDF")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            export_type = st.selectbox("Export Format", ["CSV", "PDF"], key="export_data_format")
-        with col2:
-            data_type = st.selectbox("Data Type", ["Projects", "Tasks", "Employees", "Performance"], key="export_data_type")
-        
-        # CSV-specific options
-        if export_type == "CSV":
-            include_metadata = st.checkbox("Include metadata header", value=True)
-        
-        # PDF-specific options
-        if export_type == "PDF":
-            col1, col2 = st.columns(2)
-            with col1:
-                company_name = st.text_input("Company Name", value="Company")
-            with col2:
-                include_branding = st.checkbox("Include company branding", value=True)
-        
-        if st.button("📥 Export Now", use_container_width=True):
-            data_manager = st.session_state.data_manager
-            if data_type == "Projects":
-                data = data_manager.load_data("projects") or []
-            elif data_type == "Tasks":
-                data = data_manager.load_data("tasks") or []
-            elif data_type == "Employees":
-                data = data_manager.load_data("employees") or []
+    st.markdown("### 📄 Generate Professional Reports")
+    
+    report_type = st.selectbox(
+        "Report Type",
+        ["Employee Performance Report", "Project Report", "Team Performance Overview", "Export Data"],
+        help="Select the type of professional report to generate"
+    )
+    
+    if report_type == "Employee Performance Report":
+        employees = data_manager.load_data("employees") or []
+        if user_role == "employee":
+            # Employee can only generate their own report
+            current_employee = next((e for e in employees if str(e.get("id", "")) == str(st.session_state.user.get("id", ""))), None)
+            if current_employee:
+                employee_options = {current_employee.get("name", "Me"): current_employee.get("id")}
             else:
-                data = data_manager.load_data("performances") or []
-            
-            if data:
-                if export_type == "CSV":
-                    result = export_agent.export_to_csv(data, include_metadata=include_metadata)
-                    if result.get("success"):
-                        st.success("✅ CSV export generated successfully!")
-                        st.download_button("📥 Download CSV", result["content"], 
-                                         file_name=result["filename"], mime="text/csv")
-                    else:
-                        st.error(result.get("error", "Failed to export"))
-                else:
-                    result = export_agent.export_to_pdf(
-                        data, 
-                        title=f"{data_type} Report",
-                        company_name=company_name,
-                        include_branding=include_branding
-                    )
-                    if result.get("success"):
-                        st.success("✅ PDF report generated successfully!")
-                        st.download_button("📥 Download PDF", result["content"],
-                                         file_name=result["filename"], mime="application/pdf")
-                    else:
-                        st.error(result.get("error", "Failed to export"))
-            else:
-                st.warning("⚠️ No data available to export")
-    
-    with tab2:
-        st.subheader("Performance Reports")
+                employee_options = {}
+        else:
+            # Managers can select any employee
+            employee_options = {f"{e.get('name', 'Unknown')} ({e.get('email', 'N/A')})": e.get("id") for e in employees}
         
-        employees = st.session_state.data_manager.load_data("employees") or []
-        selected_employee = st.selectbox("Select Employee", 
-                                         ["-- Choose employee --"] + [e.get('name') for e in employees],
-                                         key="export_performance_employee")
-        
-        if selected_employee and selected_employee != "-- Choose employee --":
-            # Find employee ID by name
-            employee = next((e for e in employees if e.get('name') == selected_employee), None)
-            employee_id = employee.get('id') if employee else None
-            if not employee_id:
-                st.error(f"Employee '{selected_employee}' not found")
-                return
+        if employee_options:
+            selected_employee = st.selectbox("Select Employee", list(employee_options.keys()))
+            company_name = st.text_input("Company Name", value="Your Company", help="Company name for report header")
             
             col1, col2 = st.columns(2)
             with col1:
-                report_format = st.selectbox("Report Format", ["JSON", "PDF"], key="performance_report_format")
-            with col2:
-                if report_format == "PDF":
-                    company_name = st.text_input("Company Name", value="Company", key="perf_company")
+                if st.button("📊 Preview Report", use_container_width=True):
+                    # Show preview
+                    employee_id = employee_options[selected_employee]
+                    from components.agents.performance_agent import EnhancedPerformanceAgent
+                    perf_agent = EnhancedPerformanceAgent(data_manager)
+                    eval_data = perf_agent.evaluate_employee(employee_id, save=False)
+                    
+                    if eval_data:
+                        st.markdown("### Report Preview")
+                        col_preview1, col_preview2, col_preview3 = st.columns(3)
+                        with col_preview1:
+                            st.metric("Performance Score", f"{eval_data.get('performance_score', 0):.1f}%")
+                        with col_preview2:
+                            st.metric("Completion Rate", f"{eval_data.get('completion_rate', 0):.1f}%")
+                        with col_preview3:
+                            st.metric("On-Time Rate", f"{eval_data.get('on_time_rate', 0):.1f}%")
             
-            # Show preview of report data
-            if st.button("📊 Generate Performance Report", use_container_width=True):
-                if report_format == "JSON":
-                    result = export_agent.export_performance_report(employee_id, format="json")
-                else:
-                    result = export_agent.export_performance_report(employee_id, format="pdf")
+            with col2:
+                if st.button("📥 Generate PDF Report", use_container_width=True, type="primary"):
+                    employee_id = employee_options[selected_employee]
+                    result = report_generator.generate_performance_report_pdf(employee_id, company_name)
+                    
+                    if result.get("success"):
+                        st.success("✅ Professional PDF report generated!")
+                        st.download_button(
+                            label="⬇️ Download PDF",
+                            data=result.get("content"),
+                            file_name=result.get("filename"),
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                    else:
+                        st.error(f"❌ Error: {result.get('error', 'Unknown error')}")
+        else:
+            st.info("No employees available.")
+    
+    elif report_type == "Project Report":
+        projects = data_manager.load_data("projects") or []
+        if projects:
+            project_options = {p.get("name", f"Project {p.get('id')}"): p.get("id") for p in projects}
+            selected_project = st.selectbox("Select Project", list(project_options.keys()))
+            company_name = st.text_input("Company Name", value="Your Company", help="Company name for report header")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("📊 Preview Report", use_container_width=True):
+                    report = reporting_agent.generate_project_report(project_options[selected_project])
+                    if not report.get("error"):
+                        st.markdown("### Report Preview")
+                        st.metric("Completion Rate", f"{report.get('completion_rate', 0):.1f}%")
+                        st.metric("Health Score", f"{report.get('health_score', 0):.1f}/100")
+                        st.metric("Total Tasks", report.get("total_tasks", 0))
+            
+            with col2:
+                if st.button("📥 Generate PDF Report", use_container_width=True, type="primary"):
+                    result = report_generator.generate_project_report_pdf(project_options[selected_project], company_name)
+                    
+                    if result.get("success"):
+                        st.success("✅ Professional PDF report generated!")
+                        st.download_button(
+                            label="⬇️ Download PDF",
+                            data=result.get("content"),
+                            file_name=result.get("filename"),
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                    else:
+                        st.error(f"❌ Error: {result.get('error', 'Unknown error')}")
+        else:
+            st.info("No projects available.")
+    
+    elif report_type == "Team Performance Overview":
+        if user_role in ["owner", "manager"]:
+            company_name = st.text_input("Company Name", value="Your Company")
+            
+            if st.button("📥 Generate Team Report PDF", use_container_width=True, type="primary"):
+                overview = reporting_agent.generate_overview_report()
+                # Generate team overview PDF
+                result = export_agent.export_to_pdf(
+                    [overview],
+                    title="Team Performance Overview",
+                    company_name=company_name
+                )
                 
                 if result.get("success"):
-                    st.success("✅ Performance report generated successfully!")
-                    
-                    if report_format == "JSON":
-                        # Display JSON preview as table
-                        st.subheader("Report Preview")
-                        display_as_table(result.get("report_data", {}))
-                        
-                        # Download button
-                        st.download_button(
-                            "📥 Download JSON Report",
-                            result["content"],
-                            file_name=result["filename"],
-                            mime="application/json"
-                        )
-                    else:
-                        st.download_button(
-                            "📥 Download PDF Report",
-                            result["content"],
-                            file_name=result["filename"],
-                            mime="application/pdf"
-                        )
-                else:
-                    st.error(result.get("error", "Failed to generate report"))
+                    st.success("✅ Team report generated!")
+                    st.download_button(
+                        label="⬇️ Download PDF",
+                        data=result.get("content"),
+                        file_name=f"team_overview_{datetime.now().strftime('%Y%m%d')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+        else:
+            st.info("Team reports are only available for managers and owners.")
     
-    with tab3:
-        st.subheader("Scheduled Exports")
-        st.markdown("Schedule automated exports for compliance and HR systems")
+    elif report_type == "Export Data":
+        st.markdown("### 📊 Data Export")
+        data_type = st.selectbox("Data Type", ["employees", "tasks", "projects", "goals", "feedback", "performances"])
+        export_format = st.radio("Export Format", ["CSV", "PDF"], horizontal=True)
         
-        # Show existing schedules
-        schedules = export_agent.get_export_schedules(user_email)
-        
-        if schedules:
-            st.markdown("#### Existing Schedules")
-            for schedule in schedules:
-                with st.expander(f"📅 {schedule.get('name')} - {schedule.get('frequency', 'N/A').title()}"):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"**Type:** {schedule.get('export_type')} | **Data:** {schedule.get('data_type')}")
-                        st.write(f"**Frequency:** {schedule.get('frequency', 'N/A').title()}")
-                        st.write(f"**Next Run:** {schedule.get('next_run', 'N/A')}")
-                        if schedule.get('last_run'):
-                            st.write(f"**Last Run:** {schedule.get('last_run')}")
-                    with col2:
-                        status = "✅ Enabled" if schedule.get('enabled') else "❌ Disabled"
-                        st.write(f"**Status:** {status}")
-                        if schedule.get('hr_system_integration'):
-                            st.write("🔗 HR System Integration: Enabled")
-                        if schedule.get('failure_count', 0) > 0:
-                            st.warning(f"⚠️ {schedule.get('failure_count')} failure(s)")
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        if st.button("✏️ Edit", key=f"edit_sched_{schedule.get('id')}"):
-                            st.session_state[f"editing_schedule_{schedule.get('id')}"] = True
-                            st.rerun()
-                    with col2:
-                        if st.button("🗑️ Del", key=f"del_sched_{schedule.get('id')}", type="secondary"):
-                            if export_agent.delete_export_schedule(schedule.get('id')):
-                                st.success("Schedule deleted!")
-                    st.rerun()
-                    with col3:
-                        new_status = not schedule.get('enabled')
-                        if st.button("🔄 Toggle", key=f"toggle_{schedule.get('id')}"):
-                            export_agent.update_export_schedule(schedule.get('id'), {"enabled": new_status})
-                    st.rerun()
-    
-        st.markdown("---")
-        st.markdown("#### Create New Schedule")
-        
-        with st.form("create_schedule_form"):
-            schedule_name = st.text_input("Schedule Name *")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                export_type = st.selectbox("Export Format", ["CSV", "PDF", "JSON"], key="schedule_export_format")
-                data_type = st.selectbox("Data Type", ["Projects", "Tasks", "Employees", "Performance"], key="schedule_data_type")
-            with col2:
-                frequency = st.selectbox("Frequency", ["daily", "weekly", "monthly"], key="schedule_frequency")
-                time_input = st.time_input("Time", value=datetime.strptime("09:00", "%H:%M").time())
-            
-            # Frequency-specific options
-            if frequency == "weekly":
-                day_of_week = st.selectbox("Day of Week", 
-                                          ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-                                          index=0,
-                                          key="schedule_day_of_week")
-                day_of_week_num = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].index(day_of_week)
-            elif frequency == "monthly":
-                day_of_month = st.number_input("Day of Month", min_value=1, max_value=31, value=1)
-            else:
-                day_of_week_num = None
-                day_of_month = None
-            
-            hr_integration = st.checkbox("HR System Integration (for compliance)")
-            if hr_integration:
-                hr_endpoint = st.text_input("HR System Endpoint URL", placeholder="https://hr-system.com/api/import")
-            else:
-                hr_endpoint = None
-            
-            recipient_email = st.text_input("Recipient Email", placeholder="recipient@company.com")
-            
-            if st.form_submit_button("💾 Create Schedule"):
-                if schedule_name:
-                    schedule_data = {
-                        "name": schedule_name,
-                        "export_type": export_type,
-                        "data_type": data_type,
-                        "frequency": frequency,
-                        "time": time_input.strftime("%H:%M"),
-                        "day_of_week": day_of_week_num if frequency == "weekly" else None,
-                        "day_of_month": day_of_month if frequency == "monthly" else None,
-                        "recipient_email": recipient_email if recipient_email else None,
-                        "hr_system_integration": hr_integration,
-                        "hr_system_endpoint": hr_endpoint if hr_integration else None,
-                        "created_by": user_email
-                    }
-                    
-                    result = export_agent.create_export_schedule(schedule_data)
+        if st.button("📥 Export", use_container_width=True, type="primary"):
+            data = data_manager.load_data(data_type) or []
+            if data:
+                if export_format == "PDF":
+                    result = export_agent.export_to_pdf(
+                        data,
+                        title=f"{data_type.title()} Export",
+                        company_name="Your Company"
+                    )
                     if result.get("success"):
-                        st.success(f"✅ Schedule '{schedule_name}' created successfully!")
-                        st.info(f"Next run: {result.get('schedule', {}).get('next_run', 'N/A')}")
-                        st.rerun()
-                    else:
-                        st.error("Failed to create schedule")
+                        st.success(f"✅ Exported {len(data)} records to PDF")
+                        st.download_button(
+                            label="⬇️ Download PDF",
+                            data=result.get("content"),
+                            file_name=result.get("filename"),
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
                 else:
-                    st.error("Schedule name is required")
+                    result = export_agent.export_to_csv(data)
+                    if result.get("success"):
+                        st.success(f"✅ Exported {len(data)} records")
+                        st.download_button(
+                            label="⬇️ Download CSV",
+                            data=result.get("content"),
+                            file_name=result.get("filename"),
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+            else:
+                st.info(f"No {data_type} data to export.")
 
-# Comparison page
-def comparison_page():
-    """Team comparison page"""
-    st.title("⚖️ Team Comparison")
+# Employees page (for managers/owners only)
+def employees_page():
+    """Employees management page"""
+    st.title("👥 Employees")
     st.markdown("---")
     
     agents = initialize_agents()
-    comparison_agent = agents["comparison_agent"]
+    performance_agent = agents["performance_agent"]
+    data_manager = st.session_state.data_manager
     
-    employees = st.session_state.data_manager.load_data("employees") or []
-    # Create options with names for display, but store IDs
-    employee_options = {f"{e.get('name')} ({e.get('id')})": e.get("id") for e in employees}
+    employees = data_manager.load_data("employees") or []
     
-    selected_employee_names = st.multiselect("Select Employees to Compare",
-                                            list(employee_options.keys()),
-                                            key="comparison_employees_select")
-    
-    # Convert selected names back to IDs
-    selected_employees = [employee_options[name] for name in selected_employee_names]
-    
-    if selected_employees and st.button("Compare"):
-        comparison = comparison_agent.compare_team_performance(selected_employees)
-        
-        st.subheader("Comparison Results")
-        # Remove department column from comparison data
-        comparison_data = comparison["comparison"]
-        for item in comparison_data:
-            if "department" in item:
-                del item["department"]
-        
-        # Add index column
-        comparison_with_index = []
-        for idx, comp in enumerate(comparison_data, start=1):
-            comp_copy = comp.copy()
-            comp_copy['#'] = idx
-            # Move index to first position
-            comparison_with_index.append({'#': idx, **{k: v for k, v in comp_copy.items() if k != '#'}})
-        df = pd.DataFrame(comparison_with_index)
-        # Reorder columns to put # first
-        cols = ['#'] + [col for col in df.columns if col != '#']
-        df = df[cols]
-        st.dataframe(df, use_container_width=True)
-        
-        # Chart
-        chart = comparison_agent.generate_comparison_chart(comparison, "bar")
-        if chart and chart.get("figure"):
-            st.plotly_chart(chart["figure"], use_container_width=True)
-
-
-# Employee Development page (Skills, Workload, Attendance, Engagement, 360 Reviews, Promotion, Badges)
-def employee_development_page():
-    """Comprehensive employee development page with all new features"""
-    st.title("🚀 Employee Development")
-    st.markdown("---")
-    
-    user_role = st.session_state.user.get("role", "employee")
-    user_email = st.session_state.user.get("email")
-    
-    agents = initialize_agents()
-    skill_agent = agents["skill_agent"]
-    workload_agent = agents["workload_agent"]
-    attendance_agent = agents["attendance_agent"]
-    engagement_agent = agents["engagement_agent"]
-    review_360_agent = agents["review_360_agent"]
-    promotion_agent = agents["promotion_agent"]
-    badge_agent = agents["badge_agent"]
-    
-    employees = st.session_state.data_manager.load_data("employees") or []
-    
-    # Get employee ID
-    if user_role == "employee":
-        employee = next((e for e in employees if e.get("email") == user_email), None)
-        if not employee:
-            st.error("❌ Employee record not found.")
-            return
-        selected_employee_id = employee.get("id")
-        selected_employee_name = employee.get("name")
+    if employees:
+        st.markdown("### Employee List")
+        for emp in employees:
+            with st.expander(f"👤 {emp.get('name', 'Unknown')} - {emp.get('role', 'employee').title()}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Email:** {emp.get('email', 'N/A')}")
+                    st.write(f"**Role:** {emp.get('role', 'employee').title()}")
+                with col2:
+                    # Get performance
+                    eval_data = performance_agent.evaluate_employee(emp.get("id"), save=False)
+                    if eval_data:
+                        st.write(f"**Performance Score:** {eval_data.get('performance_score', 0):.1f}%")
+                        st.write(f"**Rank:** {eval_data.get('rank', 'N/A')}")
     else:
-        # Managers/Owners can select employee
-        employee_options = {e.get('name'): e.get("id") for e in employees}
-        if not employee_options:
-            st.warning("No employees found.")
-            return
-        
-        selected_employee_name = st.selectbox("Select Employee", ["-- Choose employee --"] + list(employee_options.keys()), key="dev_select_employee")
-        selected_employee_id = employee_options.get(selected_employee_name) if selected_employee_name and selected_employee_name != "-- Choose employee --" else None
-        
-        if not selected_employee_id:
-            st.info("👆 Please select an employee to view their development metrics.")
-            return
-    
-    # Create tabs for different features
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-        "🎯 Skills", "📊 Workload", "📅 Attendance", "💡 Engagement", 
-        "🔄 360° Review", "⭐ Promotion", "🏆 Badges"
-    ])
-    
-    # Tab 1: Skills
-    with tab1:
-        st.subheader("🎯 Skill Tracking")
-        
-        skills = skill_agent.get_employee_skills(selected_employee_id)
-        strong_skills = skill_agent.get_strong_skills(selected_employee_id)
-        weak_skills = skill_agent.get_weak_skills(selected_employee_id)
-        needs_improvement = skill_agent.get_skills_needing_improvement(selected_employee_id)
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Skills", len(skills))
-        with col2:
-            st.metric("Strong Skills", len(strong_skills))
-        with col3:
-            st.metric("Skills to Improve", len(needs_improvement))
-        
-        st.markdown("---")
-        
-        # Add/Edit Skills (Managers/Owners or self)
-        if user_role in ["owner", "manager"] or user_role == "employee":
-            with st.expander("➕ Add/Update Skill", expanded=False):
-                with st.form("add_skill_form"):
-                    skill_name = st.text_input("Skill Name", key="skill_name_input")
-                    skill_level = st.slider("Skill Level (1-5)", 1, 5, 3, key="skill_level_slider")
-                    
-                    if st.form_submit_button("💾 Save Skill"):
-                        if skill_name:
-                            result = skill_agent.add_skill(selected_employee_id, skill_name, skill_level)
-                            if result.get("success"):
-                                st.success(f"✅ Skill '{skill_name}' added/updated!")
-                                st.rerun()
-                            else:
-                                st.error(result.get("error"))
-        
-        # Display Skills
-        if skills:
-            st.subheader("Current Skills")
-            
-            # Display skills as visual cards with progress bars
-            if skills:
-                for skill, level in skills.items():
-                    # Determine status and color
-                    if level >= 4:
-                        status = "Strong"
-                        status_color = "#3DDF85"
-                        status_emoji = "🟢"
-                    elif level == 3:
-                        status = "Medium"
-                        status_color = "#00E0FF"
-                        status_emoji = "🟡"
-                    else:
-                        status = "Needs Improvement"
-                        status_color = "#00E0FF"
-                        status_emoji = "🔴"
-                    
-                    # Calculate progress percentage (level out of 5)
-                    progress_percent = (level / 5) * 100
-                    
-                    # Create skill card
-                    st.markdown(f"""
-                        <div style="background-color: #111729; border: 1px solid rgba(255, 255, 255, 0.08); 
-                                    border-radius: 16px; padding: 20px; margin-bottom: 15px; 
-                                    box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.05);">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                                <div style="font-size: 1.1rem; font-weight: 600; color: #FFFFFF;">{skill}</div>
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <div style="font-size: 0.9rem; color: {status_color}; font-weight: 500;">
-                                        {status_emoji} {status}
-                                    </div>
-                                    <div style="font-size: 1.2rem; font-weight: 700; color: #00E0FF;">{level}/5</div>
-                                </div>
-                            </div>
-                            <div style="background-color: rgba(255, 255, 255, 0.05); border-radius: 10px; height: 12px; overflow: hidden; margin-top: 8px;">
-                                <div style="background: linear-gradient(90deg, {status_color}, {status_color}dd); 
-                                            height: 100%; width: {progress_percent}%; 
-                                            transition: width 0.5s ease; border-radius: 10px;"></div>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.info("No skills recorded yet.")
-            
-            # Strong Skills Section
-            if strong_skills:
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("### ✅ Strong Skills")
-                strong_cols = st.columns(min(len(strong_skills), 3))
-                for idx, skill in enumerate(strong_skills):
-                    level = skills[skill]
-                    with strong_cols[idx % 3]:
-                        st.markdown(f"""
-                            <div style="background-color: rgba(61, 223, 133, 0.1); border: 1px solid #3DDF85; 
-                                        border-radius: 12px; padding: 15px; text-align: center;">
-                                <div style="font-size: 1.5rem; margin-bottom: 5px;">⭐</div>
-                                <div style="font-weight: 600; color: #3DDF85; margin-bottom: 5px;">{skill}</div>
-                                <div style="color: #94A3B8; font-size: 0.9rem;">Level {level}/5</div>
-                            </div>
-                        """, unsafe_allow_html=True)
-            
-            # Skills Needing Improvement Section
-            if needs_improvement:
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("### 📈 Skills Needing Improvement")
-                improvement_cols = st.columns(min(len(needs_improvement), 3))
-                for idx, skill in enumerate(needs_improvement):
-                    level = skills[skill]
-                    with improvement_cols[idx % 3]:
-                        st.markdown(f"""
-                            <div style="background-color: rgba(0, 224, 255, 0.1); border: 1px solid #00E0FF; 
-                                        border-radius: 12px; padding: 15px; text-align: center;">
-                                <div style="font-size: 1.5rem; margin-bottom: 5px;">📈</div>
-                                <div style="font-weight: 600; color: #00E0FF; margin-bottom: 5px;">{skill}</div>
-                                <div style="color: #94A3B8; font-size: 0.9rem;">Level {level}/5</div>
-                                <div style="color: #00E0FF; font-size: 0.85rem; margin-top: 5px;">Consider training</div>
-                            </div>
-                        """, unsafe_allow_html=True)
-        else:
-            st.info("No skills recorded yet. Add skills to track employee capabilities.")
-    
-    # Tab 2: Workload
-    with tab2:
-        st.subheader("📊 Workload Assessment")
-        
-        workload = workload_agent.assess_workload(selected_employee_id)
-        status_emoji = workload_agent.get_workload_status_emoji(workload.get("status"))
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Status", f"{status_emoji} {workload.get('status', 'N/A').title()}")
-        with col2:
-            st.metric("Active Tasks", workload.get("task_count", 0))
-        with col3:
-            st.metric("Overdue Tasks", workload.get("overdue_tasks", 0))
-        with col4:
-            st.metric("Due Soon", workload.get("tasks_due_soon", 0))
-        
-        st.markdown("---")
-        
-        # Recommendations
-        recommendations = workload.get("recommendations", [])
-        if recommendations:
-            st.subheader("💡 Recommendations")
-            for rec in recommendations:
-                st.write(f"• {rec}")
-        else:
-            st.info("✅ Workload is well-balanced!")
-    
-    # Tab 3: Attendance
-    with tab3:
-        st.subheader("📅 Attendance Tracking")
-        
-        attendance_percentage = attendance_agent.calculate_attendance_percentage(selected_employee_id, days=30)
-        today_attendance = attendance_agent.get_today_attendance(selected_employee_id)
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("30-Day Attendance", f"{attendance_percentage:.1f}%")
-        with col2:
-            if today_attendance:
-                status_emoji = "✅" if today_attendance.get("status") == "present" else "❌"
-                st.metric("Today", f"{status_emoji} {today_attendance.get('status', 'N/A').title()}")
-            else:
-                st.metric("Today", "Not Marked")
-        
-        st.markdown("---")
-        
-        # Mark Attendance (Employees can mark their own, Managers can mark for others)
-        if user_role == "employee" or user_role in ["owner", "manager"]:
-            with st.expander("📝 Mark Attendance", expanded=False):
-                with st.form("attendance_form"):
-                    status = st.radio("Status", ["present", "absent"], key="attendance_status")
-                    
-                    if status == "present":
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            check_in_time = st.time_input("Check-In Time", value=datetime.now().time(), key="check_in_time")
-                        with col2:
-                            check_out_time = st.time_input("Check-Out Time (Optional)", value=None, key="check_out_time")
-                    else:
-                        check_in_time = None
-                        check_out_time = None
-                    
-                    notes = st.text_area("Notes (Optional)", key="attendance_notes")
-                    
-                    if st.form_submit_button("💾 Mark Attendance"):
-                        # Convert time inputs to ISO format if present
-                        check_in_iso = None
-                        check_out_iso = None
-                        if check_in_time:
-                            check_in_dt = datetime.combine(datetime.now().date(), check_in_time)
-                            check_in_iso = check_in_dt.isoformat()
-                        if check_out_time:
-                            check_out_dt = datetime.combine(datetime.now().date(), check_out_time)
-                            check_out_iso = check_out_dt.isoformat()
-                        
-                        result = attendance_agent.mark_attendance(
-                            selected_employee_id, 
-                            status, 
-                            notes=notes,
-                            check_in_time=check_in_iso,
-                            check_out_time=check_out_iso
-                        )
-                        if result.get("success"):
-                            st.success(f"✅ Attendance marked as {status}!")
-                            st.rerun()
-        
-        # How Check-In/Check-Out Works
-        with st.expander("ℹ️ How Check-In/Check-Out is Calculated", expanded=False):
-            st.markdown("""
-            **Check-In Time:**
-            - When you mark attendance as "Present", the system automatically records the current time as check-in
-            - You can also manually specify a check-in time when marking attendance
-            - Format: Stored as ISO timestamp (YYYY-MM-DDTHH:MM:SS)
-            
-            **Check-Out Time:**
-            - Check-out time is optional and can be set when marking attendance
-            - If not provided, it remains "N/A"
-            - Format: Stored as ISO timestamp (YYYY-MM-DDTHH:MM:SS)
-            
-            **Work Hours Calculation:**
-            - Work hours = Check-Out Time - Check-In Time
-            - Displayed in hours (e.g., "8.5 hrs")
-            - Only calculated when both check-in and check-out times are available
-            """)
-        
-        # Attendance History
-        attendance_history = attendance_agent.get_employee_attendance(selected_employee_id)
-        if attendance_history:
-            st.subheader("Recent Attendance History")
-            
-            # Calculate summary statistics
-            total_work_hours = 0
-            present_days = 0
-            absent_days = 0
-            
-            for attendance in attendance_history[:30]:
-                if attendance.get("status") == "present":
-                    present_days += 1
-                    check_in = attendance.get("check_in_time")
-                    check_out = attendance.get("check_out_time")
-                    if check_in and check_out:
-                        try:
-                            check_in_dt = datetime.fromisoformat(check_in)
-                            check_out_dt = datetime.fromisoformat(check_out)
-                            time_diff = check_out_dt - check_in_dt
-                            total_work_hours += time_diff.total_seconds() / 3600
-                        except:
-                            pass
-                else:
-                    absent_days += 1
-            
-            # Display summary card
-            if present_days > 0:
-                avg_hours = total_work_hours / present_days if present_days > 0 else 0
-                st.markdown(f"""
-                    <div style="background-color: #111729; border: 1px solid rgba(0, 224, 255, 0.3); 
-                                border-radius: 16px; padding: 20px; margin-bottom: 20px; 
-                                box-shadow: 0px 4px 20px rgba(0, 255, 255, 0.1);">
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center;">
-                            <div>
-                                <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 5px;">Total Work Hours</div>
-                                <div style="font-size: 1.8rem; font-weight: 700; color: #00E0FF;">{total_work_hours:.1f} hrs</div>
-                            </div>
-                            <div>
-                                <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 5px;">Average Daily</div>
-                                <div style="font-size: 1.8rem; font-weight: 700; color: #3DDF85;">{avg_hours:.1f} hrs</div>
-                            </div>
-                            <div>
-                                <div style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 5px;">Present Days</div>
-                                <div style="font-size: 1.8rem; font-weight: 700; color: #FFFFFF;">{present_days}</div>
-                            </div>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
-            
-            # Display attendance as visual cards
-            for attendance in attendance_history[:30]:  # Last 30 records
-                date_str = attendance.get("date", "N/A")
-                status = attendance.get("status", "N/A").title()
-                check_in = attendance.get("check_in_time")
-                check_out = attendance.get("check_out_time")
-                
-                # Format times
-                check_in_time_str = "N/A"
-                check_out_time_str = "N/A"
-                work_hours = "N/A"
-                
-                if check_in:
-                    try:
-                        check_in_dt = datetime.fromisoformat(check_in)
-                        check_in_time_str = check_in_dt.strftime("%I:%M %p")
-                    except:
-                        check_in_time_str = check_in[:19] if len(check_in) > 19 else check_in
-                
-                if check_out:
-                    try:
-                        check_out_dt = datetime.fromisoformat(check_out)
-                        check_out_time_str = check_out_dt.strftime("%I:%M %p")
-                        
-                        # Calculate work hours
-                        if check_in:
-                            try:
-                                check_in_dt = datetime.fromisoformat(check_in)
-                                time_diff = check_out_dt - check_in_dt
-                                hours = time_diff.total_seconds() / 3600
-                                work_hours = f"{hours:.1f} hrs"
-                            except:
-                                pass
-                    except:
-                        check_out_time_str = check_out[:19] if len(check_out) > 19 else check_out
-                
-                # Status color and emoji
-                if status.lower() == "present":
-                    status_emoji = "✅"
-                    status_badge = "🟢"
-                else:
-                    status_emoji = "❌"
-                    status_badge = "🔴"
-                
-                # Create attendance card using Streamlit native components
-                with st.container():
-                    # Header row with date and status
-                    header_col1, header_col2 = st.columns([3, 1])
-                    with header_col1:
-                        st.markdown(f"### {date_str}")
-                        st.markdown(f"{status_emoji} **{status.title()}**")
-                    with header_col2:
-                        if work_hours != "N/A":
-                            st.metric("Work Hours", work_hours)
-                    
-                    # Check-in and Check-out times in columns
-                    time_col1, time_col2 = st.columns(2)
-                    with time_col1:
-                        with st.container():
-                            st.caption("Check-In")
-                            st.write(f"🕐 **{check_in_time_str}**")
-                    with time_col2:
-                        with st.container():
-                            st.caption("Check-Out")
-                            st.write(f"🕐 **{check_out_time_str}**")
-                    
-                    st.divider()
-        else:
-            st.info("No attendance records found.")
-    
-    # Tab 4: Engagement
-    with tab4:
-        st.subheader("💡 Employee Engagement Score")
-        
-        engagement = engagement_agent.calculate_engagement_score(selected_employee_id)
-        engagement_level = engagement_agent.get_engagement_level(engagement.get("engagement_score", 0))
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Engagement Score", f"{engagement.get('engagement_score', 0):.1f}/100", delta=None)
-            st.write(f"**Level:** {engagement_level}")
-        with col2:
-            st.write("**Breakdown:**")
-            st.write(f"• Goals: {engagement.get('goal_score', 0):.1f} points")
-            st.write(f"• Feedback: {engagement.get('feedback_score', 0):.1f} points")
-            st.write(f"• Tasks: {engagement.get('task_score', 0):.1f} points")
-            st.write(f"• Participation: {engagement.get('participation_score', 0):.1f} points")
-        
-        st.markdown("---")
-        st.info("💡 Engagement score is calculated based on goal completion, feedback participation, task performance, and overall activity.")
-    
-    # Tab 5: 360° Review
-    with tab5:
-        st.subheader("🔄 360° Performance Review")
-        
-        # Get average ratings
-        avg_ratings = review_360_agent.calculate_average_rating(selected_employee_id)
-        reviews = review_360_agent.get_employee_reviews(selected_employee_id)
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Overall Average", f"{avg_ratings.get('overall_average', 0):.1f}/100")
-        with col2:
-            self_rating = avg_ratings.get('self_rating')
-            st.metric("Self Rating", f"{self_rating:.1f}/100" if self_rating else "N/A")
-        with col3:
-            peer_avg = avg_ratings.get('peer_average')
-            st.metric("Peer Average", f"{peer_avg:.1f}/100" if peer_avg else "N/A")
-        with col4:
-            manager_avg = avg_ratings.get('manager_average')
-            st.metric("Manager Average", f"{manager_avg:.1f}/100" if manager_avg else "N/A")
-        
-        st.markdown("---")
-        
-        # Submit Review
-        if user_role in ["owner", "manager"] or user_role == "employee":
-            with st.expander("➕ Submit Review", expanded=False):
-                with st.form("submit_review_form"):
-                    reviewer_type = st.selectbox("Reviewer Type", ["self", "peer", "manager"], 
-                                                 index=0 if user_role == "employee" else 2,
-                                                 key="reviewer_type_select")
-                    rating = st.slider("Rating (1-100)", 1, 100, 50, key="review_rating_slider")
-                    comments = st.text_area("Comments", key="review_comments")
-                    
-                    if st.form_submit_button("💾 Submit Review"):
-                        # Get reviewer ID
-                        if reviewer_type == "self":
-                            reviewer_id = selected_employee_id
-                        elif reviewer_type == "peer":
-                            reviewer_id = user_email  # Use email for peers
-                        else:
-                            reviewer_id = user_email  # Manager email
-                        
-                        result = review_360_agent.submit_review(
-                            selected_employee_id, reviewer_id, reviewer_type, rating, comments
-                        )
-                        if result.get("success"):
-                            st.success("✅ Review submitted successfully!")
-                            st.rerun()
-        
-        # Review History
-        if reviews:
-            st.subheader("Review History")
-            review_data = []
-            for idx, r in enumerate(reviews, start=1):
-                review_data.append({
-                    "#": idx,
-                    "Type": r.get("reviewer_type", "N/A").title(),
-                    "Rating": r.get("rating", 0),
-                    "Comments": r.get("comments", "N/A")[:50] + "..." if r.get("comments") and len(r.get("comments", "")) > 50 else (r.get("comments", "N/A") or "N/A"),
-                    "Date": r.get("created_at", "N/A")[:10]
-                })
-            review_df = pd.DataFrame(review_data)
-            st.dataframe(review_df, use_container_width=True, hide_index=True)
-    
-    # Tab 6: Promotion
-    with tab6:
-        st.subheader("⭐ Promotion Eligibility")
-        
-        eligibility = promotion_agent.check_promotion_eligibility(selected_employee_id)
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Performance", f"{eligibility.get('performance_score', 0):.1f}", 
-                    delta="✅" if eligibility.get('meets_performance') else "❌")
-        with col2:
-            st.metric("Attendance", f"{eligibility.get('attendance_percentage', 0):.1f}%",
-                    delta="✅" if eligibility.get('meets_attendance') else "❌")
-        with col3:
-            st.metric("Goals", f"{eligibility.get('goal_completion_rate', 0):.1f}%",
-                    delta="✅" if eligibility.get('meets_goals') else "❌")
-        with col4:
-            is_eligible = eligibility.get('is_eligible')
-            st.metric("Status", "✅ Ready" if is_eligible else "⏳ Not Ready",
-                    delta=eligibility.get('recommendation'))
-        
-        st.markdown("---")
-        
-        if is_eligible:
-            st.success(f"🎉 **{selected_employee_name}** is ready for promotion!")
-            st.write("**Criteria Met:**")
-            st.write("✅ Performance Score > 80")
-            st.write("✅ Attendance > 90%")
-            st.write("✅ Goal Completion > 70%")
-        else:
-            st.info("📋 Promotion Criteria:")
-            st.write(f"• Performance: {'✅' if eligibility.get('meets_performance') else '❌'} {eligibility.get('performance_score', 0):.1f}/80 required")
-            st.write(f"• Attendance: {'✅' if eligibility.get('meets_attendance') else '❌'} {eligibility.get('attendance_percentage', 0):.1f}%/90 required")
-            st.write(f"• Goals: {'✅' if eligibility.get('meets_goals') else '❌'} {eligibility.get('goal_completion_rate', 0):.1f}%/70 required")
-        
-        # Show all eligible employees (for managers/owners)
-        if user_role in ["owner", "manager"]:
-            st.markdown("---")
-            st.subheader("📋 All Eligible Employees")
-            eligible_employees = promotion_agent.get_all_eligible_employees()
-            if eligible_employees:
-                eligible_data = []
-                for idx, e in enumerate(eligible_employees, start=1):
-                    eligible_data.append({
-                        "#": idx,
-                        "Employee": e.get("employee_name", "N/A"),
-                        "Performance": f"{e.get('performance_score', 0):.1f}",
-                        "Attendance": f"{e.get('attendance_percentage', 0):.1f}%",
-                        "Goals": f"{e.get('goal_completion_rate', 0):.1f}%"
-                    })
-                eligible_df = pd.DataFrame(eligible_data)
-                st.dataframe(eligible_df, use_container_width=True, hide_index=True)
-            else:
-                st.info("No employees currently meet all promotion criteria.")
-    
-    # Tab 7: Badges
-    with tab7:
-        st.subheader("🏆 Badges & Rewards")
-        
-        badges = badge_agent.get_employee_badges(selected_employee_id)
-        
-        st.metric("Total Badges", len(badges))
-        
-        st.markdown("---")
-        
-        # Auto-check and award badges
-        if user_role in ["owner", "manager"]:
-            if st.button("🔍 Check & Award Badges", use_container_width=True):
-                with st.spinner("Checking eligibility for badges..."):
-                    awarded = badge_agent.check_and_award_badges(selected_employee_id)
-                    if awarded:
-                        st.success(f"✅ Awarded {len(awarded)} new badge(s)!")
-                        for badge in awarded:
-                            st.write(f"🎉 {badge.get('badge_emoji')} {badge.get('badge_name')}")
-                        st.rerun()
-                    else:
-                        st.info("No new badges to award at this time.")
-        
-        # Display Badges
-        if badges:
-            st.subheader("Earned Badges")
-            badge_cols = st.columns(3)
-            for idx, badge in enumerate(badges):
-                with badge_cols[idx % 3]:
-                    with st.container():
-                        st.markdown(f"### {badge.get('badge_emoji')} {badge.get('badge_name')}")
-                        st.write(badge.get('reason', 'N/A'))
-                        st.caption(f"Awarded: {badge.get('awarded_at', 'N/A')[:10]}")
-        else:
-            st.info("No badges earned yet. Complete goals, maintain performance, and stay engaged to earn badges!")
-        
-        # Manual Badge Awarding (Managers/Owners only)
-        if user_role in ["owner", "manager"]:
-            st.markdown("---")
-            with st.expander("➕ Manually Award Badge", expanded=False):
-                with st.form("award_badge_form"):
-                    badge_type = st.selectbox("Badge Type", list(badge_agent.BADGE_TYPES.keys()), key="badge_type_select")
-                    reason = st.text_area("Reason", key="badge_reason")
-                    
-                    if st.form_submit_button("🏆 Award Badge"):
-                        result = badge_agent.award_badge(selected_employee_id, badge_type, reason)
-                        if result.get("success"):
-                            st.success(f"✅ {result['badge']['badge_name']} awarded!")
-                            st.rerun()
+        st.info("No employees found.")
 
-
-# Main app
-def main():
-    """Main application"""
+# Main routing logic
+if not st.session_state.authenticated:
+    login_page()
+else:
     # Sidebar navigation
-    if not st.session_state.authenticated:
-        login_page()
-    else:
-        # Get user role first - needed for page initialization
-        user_role = st.session_state.user.get("role", "employee")
+    with st.sidebar:
+        st.title("📊 Performance System")
+        st.markdown("---")
         
-        # Initialize current page in session state - employees default to "My Dashboard"
+        user = st.session_state.user
+        if user:
+            st.markdown(f"**Welcome, {user.get('name', user.get('email', 'User'))}**")
+            st.markdown(f"*{user.get('role', 'employee').title()}*")
+            st.markdown("---")
+        
+        # Navigation
         if "current_page" not in st.session_state:
-            if user_role == "employee":
-                st.session_state.current_page = "My Dashboard"
-            else:
-                st.session_state.current_page = "Dashboard"
+            st.session_state.current_page = "Dashboard"
         
-        # Redirect employees away from "Dashboard" to "My Dashboard"
-        if user_role == "employee" and st.session_state.current_page == "Dashboard":
-            st.session_state.current_page = "My Dashboard"
-        
-        # Compact sidebar header
-        st.sidebar.markdown("### 📊 Performance System")
-        st.sidebar.markdown(f"**{st.session_state.user.get('name', 'User')}** ({st.session_state.user.get('role', 'employee').title()})")
-        st.sidebar.markdown("---")
-        
-        # Navigation buttons - role-based filtering
-        all_pages = [
-            ("Dashboard", "📊", ["owner", "manager"]),  # Employees see "My Dashboard" instead
-            ("My Dashboard", "👤", ["employee"]),  # Only for employees
-            ("Projects", "📁", ["owner", "manager"]),  # Employees can't access
-            ("Tasks", "✅", ["owner", "manager", "employee"]),  # Employees see "My Tasks" only
-            ("Employees", "👥", ["owner", "manager"]),  # Employees can't access
-            ("Performance", "📈", ["owner", "manager", "employee"]),  # Employees see own only
-            ("Employee Development", "🚀", ["owner", "manager", "employee"]),  # New comprehensive page
-            ("Analytics", "🔍", ["owner", "manager"]),  # Employees can't access
-            ("Risks", "⚠️", ["owner", "manager"]),  # Employees can't access
-            ("Goals", "🎯", ["owner", "manager", "employee"]),  # Employees see own only
-            ("Feedback", "💬", ["owner", "manager", "employee"]),
-            ("Notifications", "🔔", ["owner", "manager", "employee"]),
-            ("Export", "📤", ["owner", "manager"]),  # Employees can't access
-            ("Comparison", "⚖️", ["owner", "manager"])  # Employees can't access
-        ]
-        
-        # Filter pages based on role
-        pages = [(name, icon) for name, icon, roles in all_pages if user_role in roles]
-        
-        for page_name, icon in pages:
-            if st.sidebar.button(f"{icon} {page_name}", key=f"nav_{page_name}", use_container_width=True):
-                st.session_state.current_page = page_name
-                st.rerun()
-        
-        # Logout button at bottom - compact spacing
-        st.sidebar.markdown("---")
-        if st.sidebar.button("🚪 Logout", use_container_width=True, type="secondary"):
-            st.session_state.authenticated = False
-            st.session_state.user = None
-            st.session_state.current_page = None  # Will be set on next login based on role
+        if st.button("🏠 Dashboard", use_container_width=True):
+            st.session_state.current_page = "Dashboard"
             st.rerun()
         
-        # Display current page
-        current_page = st.session_state.current_page
+        if st.button("📁 Projects", use_container_width=True):
+            st.session_state.current_page = "Projects"
+            st.rerun()
         
-        if current_page == "Dashboard":
-            dashboard()
-        elif current_page == "My Dashboard":
-            employee_dashboard_page()
-        elif current_page == "Projects":
-            projects_page()
-        elif current_page == "Tasks":
-            tasks_page()
-        elif current_page == "Employees":
-            employees_page()
-        elif current_page == "Performance":
-            performance_page()
-        elif current_page == "Employee Development":
-            employee_development_page()
-        elif current_page == "Analytics":
-            analytics_page()
-        elif current_page == "Risks":
-            risks_page()
-        elif current_page == "Goals":
-            goals_page()
-        elif current_page == "Feedback":
-            feedback_page()
-        elif current_page == "Notifications":
-            notifications_page()
-        elif current_page == "Export":
-            export_page()
-        elif current_page == "Comparison":
-            comparison_page()
-
-if __name__ == "__main__":
-    main()
+        # Only show Employees button for managers/owners
+        if user and user.get('role') in ['owner', 'manager']:
+            if st.button("👥 Employees", use_container_width=True):
+                st.session_state.current_page = "Employees"
+                st.rerun()
+        
+        # Tasks are shown within Projects, so no separate Tasks page needed
+        
+        if st.button("🎯 Goals", use_container_width=True):
+            st.session_state.current_page = "Goals"
+            st.rerun()
+        
+        if st.button("💬 Feedback", use_container_width=True):
+            st.session_state.current_page = "Feedback"
+            st.rerun()
+        
+        if st.button("📊 Reports", use_container_width=True):
+            st.session_state.current_page = "Reports"
+            st.rerun()
+        
+        st.markdown("---")
+        if st.button("🚪 Logout", use_container_width=True):
+            st.session_state.authenticated = False
+            st.session_state.user = None
+            st.session_state.current_page = "Dashboard"
+            st.rerun()
+    
+    # Route to appropriate page
+    current_page = st.session_state.get("current_page", "Dashboard")
+    
+    if current_page == "Dashboard":
+        dashboard()
+    elif current_page == "Projects":
+        projects_page()
+    elif current_page == "Goals":
+        goals_page()
+    elif current_page == "Feedback":
+        feedback_page()
+    elif current_page == "Reports":
+        reports_page()
+    elif current_page == "Employees":
+        employees_page()
+    else:
+        st.title(f"📄 {current_page}")
+        st.info(f"{current_page} page is coming soon.")

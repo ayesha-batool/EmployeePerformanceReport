@@ -50,12 +50,8 @@ from components.managers.data_manager import DataManager
 from components.agents.performance_agent import EnhancedPerformanceAgent
 from components.agents.notification_agent import NotificationAgent
 from components.agents.reporting_agent import ReportingAgent
-from components.agents.risk_agent import RiskDetectionAgent
-from components.agents.task_agent import TaskAgent
 from components.agents.goal_agent import GoalAgent
 from components.agents.export_agent import ExportAgent
-from components.agents.workload_agent import WorkloadAgent
-from components.agents.attendance_agent import AttendanceAgent
 
 # Initialize server
 server = Server("employee-performance-automation")
@@ -65,12 +61,8 @@ data_manager = DataManager()
 performance_agent = EnhancedPerformanceAgent(data_manager)
 notification_agent = NotificationAgent(data_manager)
 reporting_agent = ReportingAgent(data_manager)
-risk_agent = RiskDetectionAgent(data_manager, performance_agent, reporting_agent)
-task_agent = TaskAgent(data_manager, notification_agent)
 goal_agent = GoalAgent(data_manager, notification_agent)
 export_agent = ExportAgent(data_manager)
-workload_agent = WorkloadAgent(data_manager)
-attendance_agent = AttendanceAgent(data_manager)
 
 
 @server.list_tools()
@@ -275,11 +267,11 @@ async def list_tools() -> List[Tool]:
                         "description": "Whether to evaluate all employees (default: True)",
                         "default": True
                     },
-                    "detect_risks": {
-                        "type": "boolean",
-                        "description": "Whether to detect risks (default: True)",
-                        "default": True
-                    },
+        "detect_risks": {
+            "type": "boolean",
+            "description": "Whether to detect risks (default: False - feature removed)",
+            "default": False
+        },
                     "check_overdue": {
                         "type": "boolean",
                         "description": "Whether to check for overdue tasks/goals (default: True)",
@@ -693,15 +685,13 @@ async def handle_evaluate_all_employees(arguments: Dict[str, Any]) -> List[TextC
 
 async def handle_detect_all_risks(arguments: Dict[str, Any]) -> List[TextContent]:
     """Detect all risks in the system"""
-    risks = risk_agent.detect_all_risks()
-    
+    # Risk detection removed - use reporting agent for project risks
     return [TextContent(
         type="text",
         text=json.dumps({
-            "status": "success",
-            "total_risks": len(risks),
-            "risks": risks
-        }, indent=2, default=str)
+            "status": "not_implemented",
+            "message": "Risk detection agent removed. Use reporting agent for project risk analysis."
+        }, indent=2)
     )]
 
 
@@ -823,17 +813,18 @@ async def handle_assess_workload(arguments: Dict[str, Any]) -> List[TextContent]
     """Assess workload for all employees"""
     threshold = arguments.get("threshold", 10)
     employees = data_manager.load_data("employees") or []
+    tasks = data_manager.load_data("tasks") or []
     
     workload_results = []
     for employee in employees:
         employee_id = employee.get("id")
         if employee_id:
-            workload = workload_agent.assess_workload(employee_id)
+            employee_tasks = [t for t in tasks if t.get("assigned_to") == employee_id and t.get("status") in ["pending", "in_progress"]]
             workload_results.append({
                 "employee_id": employee_id,
                 "employee_name": employee.get("name"),
-                "workload": workload,
-                "overloaded": workload.get("active_tasks", 0) > threshold
+                "active_tasks": len(employee_tasks),
+                "overloaded": len(employee_tasks) > threshold
             })
     
     return [TextContent(
@@ -882,22 +873,13 @@ async def handle_export_data(arguments: Dict[str, Any]) -> List[TextContent]:
 
 async def handle_record_attendance(arguments: Dict[str, Any]) -> List[TextContent]:
     """Record employee attendance"""
-    employee_id = arguments["employee_id"]
-    action = arguments["action"]
-    date_str = arguments.get("date", datetime.now().strftime("%Y-%m-%d"))
-    
-    if action == "checkin":
-        result = attendance_agent.record_checkin(employee_id, date_str)
-    else:
-        result = attendance_agent.record_checkout(employee_id, date_str)
-    
+    # Attendance agent removed - feature not implemented
     return [TextContent(
         type="text",
         text=json.dumps({
-            "status": "success",
-            "message": f"Attendance {action} recorded",
-            "result": result
-        }, indent=2, default=str)
+            "status": "not_implemented",
+            "message": "Attendance tracking agent removed."
+        }, indent=2)
     )]
 
 
@@ -908,8 +890,10 @@ async def handle_get_employee_stats(arguments: Dict[str, Any]) -> List[TextConte
     # Get performance evaluation
     performance = performance_agent.evaluate_employee(employee_id, save=False)
     
-    # Get workload
-    workload = workload_agent.assess_workload(employee_id)
+    # Get workload (simple calculation)
+    tasks = data_manager.load_data("tasks") or []
+    employee_tasks = [t for t in tasks if t.get("assigned_to") == employee_id and t.get("status") in ["pending", "in_progress"]]
+    workload = {"active_tasks": len(employee_tasks)}
     
     # Get tasks
     tasks = data_manager.load_data("tasks") or []
@@ -954,7 +938,7 @@ async def handle_automated_daily_check(arguments: Dict[str, Any]) -> List[TextCo
         results["checks"]["performance_evaluation"] = json.loads(eval_result[0].text)
     
     if arguments.get("detect_risks", True):
-        risk_result = await handle_detect_all_risks({})
+        # Risk detection removed
         results["checks"]["risk_detection"] = json.loads(risk_result[0].text)
     
     if arguments.get("check_overdue", True):
