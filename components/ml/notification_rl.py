@@ -307,6 +307,11 @@ class NotificationRL:
     def load_model(self, path: str = "models/notification_rl.pkl"):
         """Load Q-table and statistics"""
         try:
+            # Check if file exists first
+            if not os.path.exists(path):
+                # Model doesn't exist yet - this is normal for first-time use
+                return False
+            
             with open(path, "rb") as f:
                 import pickle
                 model_data = pickle.load(f)
@@ -314,6 +319,12 @@ class NotificationRL:
             self.q_table = defaultdict(lambda: defaultdict(float), model_data.get("q_table", {}))
             self.stats = model_data.get("stats", self.stats)
             self.user_responses = defaultdict(list, model_data.get("user_responses", {}))
+            return True
+        except FileNotFoundError:
+            # File doesn't exist - this is normal, no error needed
+            return False
         except Exception as e:
-            print(f"❌ Error loading RL model: {e}")
+            # Only print error for unexpected issues (corrupted file, permission errors, etc.)
+            print(f"⚠️ Warning: Could not load RL model from {path}: {e}")
+            return False
 

@@ -101,3 +101,15 @@ class DataManager:
     def update_achievement(self, achievement_id: str, achievement_data: Dict[str, Any]) -> Dict[str, Any]:
         """Update achievement"""
         return self.supabase.update_achievement(achievement_id, achievement_data)
+    
+    def create_employee(self, employee_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create employee"""
+        return self.supabase.create_employee(employee_data)
+    
+    def update_employee(self, employee_id: str, employee_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update employee"""
+        return self.supabase.update_employee(employee_id, employee_data)
+    
+    def delete_employee(self, employee_id: str) -> bool:
+        """Delete employee"""
+        return self.supabase.delete_employee(employee_id)

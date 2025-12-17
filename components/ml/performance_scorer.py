@@ -1,7 +1,7 @@
 """
 ML Performance Scoring Model
 Uses Random Forest / XGBoost to predict performance scores
-Inputs: Task quality, Feedback sentiment, Attendance trend, Workload balance
+Inputs: Task quality, Feedback sentiment, Workload balance
 Output: Performance score (0-100)
 """
 import numpy as np
@@ -47,11 +47,27 @@ class PerformanceScorer:
         self.is_trained = False
         self.model_path = model_path or "models/performance_scorer.pkl"
         
+        # DEBUG: Check model status
+        import os
+        model_exists = os.path.exists(self.model_path)
+        print(f"🔍 [DEBUG] PerformanceScorer initialized")
+        print(f"🔍 [DEBUG] Model file exists: {model_exists} (path: {self.model_path})")
+        print(f"🔍 [DEBUG] Model type: {model_type}")
+        print(f"🔍 [DEBUG] SKLEARN_AVAILABLE: {SKLEARN_AVAILABLE}")
+        
         # Load existing model if available
-        if model_path and os.path.exists(model_path):
-            self.load_model(model_path)
-        elif os.path.exists(self.model_path):
-            self.load_model(self.model_path)
+        try:
+            if model_path and os.path.exists(model_path):
+                self.load_model(model_path)
+                print(f"🔍 [DEBUG] Model loaded from custom path, is_trained: {self.is_trained}")
+            elif os.path.exists(self.model_path):
+                self.load_model(self.model_path)
+                print(f"🔍 [DEBUG] Model loaded successfully, is_trained: {self.is_trained}")
+            else:
+                print(f"🔍 [DEBUG] Model file not found, will use fallback methods")
+        except Exception as e:
+            print(f"🔍 [DEBUG] Error loading model: {e}")
+            pass
     
     def extract_features(self, employee_data: Dict[str, Any]) -> np.ndarray:
         """
@@ -60,8 +76,7 @@ class PerformanceScorer:
         Features:
         1. Task quality (average task completion quality score)
         2. Feedback sentiment (average sentiment from feedback)
-        3. Attendance trend (recent attendance rate trend)
-        4. Workload balance (workload distribution score)
+        3. Workload balance (workload distribution score)
         """
         features = []
         
@@ -112,19 +127,7 @@ class PerformanceScorer:
         
         features.append(sentiment)
         
-        # 3. Attendance Trend (0-1 normalized)
-        attendance_records = employee_data.get("attendance", [])
-        if attendance_records and len(attendance_records) >= 7:
-            # Calculate recent attendance rate (last 30 days)
-            recent_records = attendance_records[-30:] if len(attendance_records) > 30 else attendance_records
-            present_count = sum(1 for a in recent_records if a.get("status") == "present")
-            attendance_rate = present_count / len(recent_records) if recent_records else 0.95
-        else:
-            attendance_rate = 0.95  # Default to good attendance
-        
-        features.append(attendance_rate)
-        
-        # 4. Workload Balance (0-1 normalized, 0.5 = balanced)
+        # 3. Workload Balance (0-1 normalized, 0.5 = balanced)
         tasks = employee_data.get("tasks", [])
         if tasks:
             # Calculate workload balance: optimal is 0.5 (not too few, not too many)
@@ -222,16 +225,33 @@ class PerformanceScorer:
         """
         if not self.is_trained or self.model is None:
             # Fallback to simple calculation if model not trained
+            print(f"🔍 [DEBUG] ML Model not trained, using fallback calculation")
             return self._fallback_score(employee_data)
+        
+        print(f"🔍 [DEBUG] Using ML Model ({self.model_type}) for prediction")
         
         # Extract features
         features = self.extract_features(employee_data)
+        print(f"🔍 [DEBUG] Extracted Features: Task Quality={features[0][0]:.3f}, Sentiment={features[0][1]:.3f}, Workload={features[0][2]:.3f}")
+        
+        # Check if scaler expects different number of features (old model with attendance)
+        num_features = features.shape[1]
+        if hasattr(self.scaler, 'n_features_in_') and self.scaler.n_features_in_ != num_features:
+            print(f"🔍 [DEBUG] Scaler expects {self.scaler.n_features_in_} features but got {num_features}. Model was trained with old format (with attendance). Using fallback.")
+            return self._fallback_score(employee_data)
         
         # Scale features
-        features_scaled = self.scaler.transform(features)
+        try:
+            features_scaled = self.scaler.transform(features)
+        except ValueError as e:
+            # If scaler is incompatible (e.g., trained with 4 features, now have 3)
+            print(f"🔍 [DEBUG] Scaler incompatible: {e}. Using fallback calculation.")
+            return self._fallback_score(employee_data)
         
         # Predict
         score = self.model.predict(features_scaled)[0]
+        
+        print(f"🔍 [DEBUG] ML Model Predicted Score: {score:.2f}%")
         
         # Ensure score is in valid range
         return max(0.0, min(100.0, float(score)))
@@ -239,9 +259,18 @@ class PerformanceScorer:
     def _fallback_score(self, employee_data: Dict[str, Any]) -> float:
         """Fallback scoring if model not trained"""
         features = self.extract_features(employee_data).flatten()
-        # Simple weighted average
-        weights = [0.3, 0.25, 0.25, 0.2]  # task_quality, sentiment, attendance, workload
+        print(f"🔍 [DEBUG] Fallback Features: Task Quality={features[0]:.3f}, Sentiment={features[1]:.3f}, Workload={features[2]:.3f}")
+        
+        # Simple weighted average (removed attendance - not tracked in system)
+        weights = [0.40, 0.35, 0.25]  # task_quality, sentiment, workload
         score = sum(f * w for f, w in zip(features, weights)) * 100
+        
+        print(f"🔍 [DEBUG] Fallback Calculation:")
+        print(f"  - Task Quality × 0.40 = {features[0] * 0.40 * 100:.2f}%")
+        print(f"  - Sentiment × 0.35 = {features[1] * 0.35 * 100:.2f}%")
+        print(f"  - Workload × 0.25 = {features[2] * 0.25 * 100:.2f}%")
+        print(f"  - Total Score = {score:.2f}%")
+        
         return max(0.0, min(100.0, score))
     
     def save_model(self, path: Optional[str] = None):

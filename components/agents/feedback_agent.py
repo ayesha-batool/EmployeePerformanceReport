@@ -106,11 +106,36 @@ class FeedbackAgent:
         return {"success": False, "error": "Feedback not found"}
     
     def get_feedbacks_for_employee(self, employee_id: str, status: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get feedbacks for an employee"""
+        """Get feedbacks for an employee - tries multiple matching strategies"""
+        if not employee_id:
+            return []
+            
         feedbacks = self.data_manager.load_data("feedback") or []
         # Convert employee_id to string for comparison (handle both string and int IDs)
-        employee_id_str = str(employee_id)
-        emp_feedbacks = [f for f in feedbacks if str(f.get("employee_id", "")) == employee_id_str]
+        employee_id_str = str(employee_id).strip()
+        
+        # Try multiple matching strategies
+        emp_feedbacks = []
+        
+        # Strategy 1: Match by employee_id field
+        emp_feedbacks = [f for f in feedbacks if str(f.get("employee_id", "")).strip() == employee_id_str]
+        
+        # Strategy 2: If no matches, try user_id field
+        if not emp_feedbacks:
+            emp_feedbacks = [f for f in feedbacks if str(f.get("user_id", "")).strip() == employee_id_str]
+        
+        # Strategy 3: Try case-insensitive matching
+        if not emp_feedbacks:
+            emp_feedbacks = [f for f in feedbacks if str(f.get("employee_id", "")).strip().lower() == employee_id_str.lower()]
+        
+        # Strategy 4: Try partial matching (in case of UUID format differences)
+        if not emp_feedbacks:
+            for f in feedbacks:
+                feedback_emp_id = str(f.get("employee_id", "")).strip()
+                feedback_user_id = str(f.get("user_id", "")).strip()
+                if (feedback_emp_id and employee_id_str in feedback_emp_id) or \
+                   (feedback_user_id and employee_id_str in feedback_user_id):
+                    emp_feedbacks.append(f)
         
         if status:
             emp_feedbacks = [f for f in emp_feedbacks if f.get("status") == status]

@@ -28,7 +28,7 @@ class ProfessionalReportGenerator:
     def __init__(self, data_manager: DataManager):
         self.data_manager = data_manager
     
-    def generate_performance_report_pdf(self, employee_id: str, company_name: str = "Company") -> Dict[str, Any]:
+    def generate_performance_report_pdf(self, employee_id: str) -> Dict[str, Any]:
         """Generate professional performance report PDF"""
         if not REPORTLAB_AVAILABLE:
             return {"success": False, "error": "ReportLab not installed. Install with: pip install reportlab"}
@@ -98,8 +98,7 @@ class ProfessionalReportGenerator:
         )
         
         # Header
-        elements.append(Paragraph(f"{company_name}", title_style))
-        elements.append(Paragraph("Employee Performance Report", subtitle_style))
+        elements.append(Paragraph("Employee Performance Report", title_style))
         elements.append(Paragraph(f"Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}", 
                                   styles["Normal"]))
         elements.append(Spacer(1, 0.5*inch))
@@ -235,7 +234,7 @@ class ProfessionalReportGenerator:
             textColor=colors.HexColor("#718096"),
             alignment=TA_CENTER
         )
-        elements.append(Paragraph(f"Confidential - {company_name} Performance Management System", footer_style))
+        elements.append(Paragraph("Confidential - Performance Management System", footer_style))
         elements.append(Paragraph(f"Page 1 | Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", footer_style))
         
         # Build PDF
@@ -251,7 +250,7 @@ class ProfessionalReportGenerator:
             "filename": filename
         }
     
-    def generate_project_report_pdf(self, project_id: str, company_name: str = "Company") -> Dict[str, Any]:
+    def generate_project_report_pdf(self, project_id: str) -> Dict[str, Any]:
         """Generate professional project report PDF"""
         if not REPORTLAB_AVAILABLE:
             return {"success": False, "error": "ReportLab not installed"}
@@ -283,8 +282,7 @@ class ProfessionalReportGenerator:
         )
         
         # Header
-        elements.append(Paragraph(f"{company_name}", title_style))
-        elements.append(Paragraph("Project Report", styles["Normal"]))
+        elements.append(Paragraph("Project Report", title_style))
         elements.append(Paragraph(f"Generated: {datetime.now().strftime('%B %d, %Y')}", styles["Normal"]))
         elements.append(Spacer(1, 0.3*inch))
         
@@ -333,7 +331,7 @@ class ProfessionalReportGenerator:
         footer_style = ParagraphStyle("Footer", parent=styles["Normal"],
                                      fontSize=8, textColor=colors.HexColor("#718096"),
                                      alignment=TA_CENTER)
-        elements.append(Paragraph(f"Confidential - {company_name}", footer_style))
+        elements.append(Paragraph("Confidential - Performance Management System", footer_style))
         
         doc.build(elements)
         pdf_content = buffer.getvalue()
@@ -357,4 +355,7 @@ class ProfessionalReportGenerator:
             return "Needs Improvement"
         else:
             return "Poor"
+
+
+
 

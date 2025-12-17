@@ -17,14 +17,16 @@ A comprehensive employee performance tracking and analytics system with an agent
 6. [How to Run](#how-to-run)
 7. [Authentication](#authentication)
 8. [All Pages & Features](#all-pages--features)
-9. [Agentic Framework](#agentic-framework)
-10. [AI Integration](#ai-integration)
-11. [Event-Driven Architecture](#event-driven-architecture)
-12. [ML Models](#ml-models)
-13. [API Endpoints](#api-endpoints)
-14. [MCP Server](#mcp-server)
-15. [Technical Architecture](#technical-architecture)
-16. [Troubleshooting](#troubleshooting)
+9. [Employee Performance Reports](#employee-performance-reports)
+10. [Agentic Framework](#agentic-framework)
+11. [AI Integration & Performance Calculation](#ai-integration--performance-calculation)
+12. [ML Models & Training](#ml-models--training)
+13. [Event-Driven Architecture](#event-driven-architecture)
+14. [API Endpoints](#api-endpoints)
+15. [Frontend-Backend Separation](#frontend-backend-separation)
+16. [MCP Server](#mcp-server)
+17. [Technical Architecture](#technical-architecture)
+18. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -37,8 +39,9 @@ This is a comprehensive **Employee Performance Management System** built with St
 - ✅ User Authentication (Supabase)
 - ✅ Project Management (CRUD operations)
 - ✅ Task Management (CRUD operations)
-- ✅ Employee Management (CRUD operations)
+- ✅ Employee Management (CRUD operations - Add, Edit, Delete)
 - ✅ Performance Evaluation (AI-powered scoring)
+- ✅ Employee Performance Reports (PDF generation)
 - ✅ Advanced Analytics Dashboard
 - ✅ Feedback System
 - ✅ Goal Tracking
@@ -78,6 +81,12 @@ This is a comprehensive **Employee Performance Management System** built with St
    - Use `owner@company.com` / `admin123` for admin access
    - Or `john@company.com` / `password123` for employee access
 
+6. **Add Employees (for Owners/Managers):**
+   - Go to **👥 Employees** page
+   - Click **➕ Add Employee** tab
+   - Fill in employee details and save
+   - Return to **📊 Reports** to generate performance reports
+
 ---
 
 ## Installation & Setup
@@ -109,6 +118,7 @@ pip install -r requirements_ml.txt  # For ML features
 - scikit-learn (for ML)
 - xgboost (for ML)
 - prophet (for time-series forecasting)
+- reportlab (for PDF generation)
 
 ### 3. Configure Environment Variables
 
@@ -261,22 +271,7 @@ uvicorn api.main:app --port 8003 --reload
 
 ---
 
-### 2. 👤 My Dashboard (Employee Self-Service)
-
-**What it does:**
-- Personal performance metrics for logged-in employee
-- Shows assigned tasks
-- Displays personal goals
-- Shows feedback received
-- Performance history chart
-- Task completion statistics
-- Achievement logging and tracking
-
-**Who can access:** All employees (shows their own data)
-
----
-
-### 3. 📁 Projects (Project Management)
+### 2. 📁 Projects (Project Management)
 
 **What it does:**
 - **View Projects**: Table view with Edit/Delete actions
@@ -292,7 +287,7 @@ uvicorn api.main:app --port 8003 --reload
 
 ---
 
-### 4. ✅ Tasks (Task Management)
+### 3. ✅ Tasks (Task Management)
 
 **Tasks are now integrated into the Projects page as sub-items.**
 
@@ -306,39 +301,25 @@ uvicorn api.main:app --port 8003 --reload
 
 ---
 
-### 5. 👥 Employees (Employee Management)
+### 4. 👥 Employees (Employee Management)
 
 **What it does:**
-- **View Employees**: Table with all employees (Edit/Delete)
-- **Create Employee**: Add new employees with name, email, position, hire date
-- Employee details and management
+- **View Employees**: List of all employees with performance metrics
+- **Add Employee**: Create new employees with:
+  - Name (required)
+  - Email (required)
+  - Position (optional)
+  - Hire Date (optional)
+  - Skills (optional, JSON format)
+- **Edit Employee**: Update employee information
+- **Delete Employee**: Remove employee from system (with confirmation)
+- Employee details and performance tracking
 
 **Who can access:** Managers and Owners only
 
 ---
 
-### 6. 📈 Performance & Development (Merged Page)
-
-**What it does:**
-- **Performance Evaluation**: 
-  - Select employee from dropdown
-  - Click "Evaluate Performance" button
-  - System calculates (AI-powered):
-    - **Performance Score** (0-100) using ML model
-    - **Completion Rate** (%)
-    - **On-Time Rate** (%)
-    - **Rank** (among all employees)
-    - **Trend** (improving/declining/stable)
-- Shows performance history chart
-- Displays detailed evaluation metrics
-- AI-powered insights and predictions
-- **13 Tabs**: Performance, Goals, Feedback, Skills, Development Plans, Achievements, Analytics, Reports, Trends, Comparisons, Predictions, Recommendations, Export
-
-**Who can access:** Managers and Owners
-
----
-
-### 7. 🎯 Goals
+### 5. 🎯 Goals
 
 **What it does:**
 - **Goals Tab**: 
@@ -353,7 +334,7 @@ uvicorn api.main:app --port 8003 --reload
 
 ---
 
-### 8. 💬 Feedback (Feedback System)
+### 6. 💬 Feedback (Feedback System)
 
 **What it does:**
 - **Manager View**:
@@ -372,14 +353,79 @@ uvicorn api.main:app --port 8003 --reload
 
 ---
 
-### 9. 📤 Export (Data Export)
+### 7. 📊 Reports (Employee Performance Reports)
+
+**What it does:**
+- **Employee Performance Report**: Generate professional PDF reports based on performance metrics
+- **Preview Report**: View detailed performance metrics before generating PDF:
+  - Key Performance Metrics (Performance Score, Completion Rate, On-Time Rate, Rank)
+  - Tasks Summary (Total, Completed, In Progress, Pending)
+  - Goals Summary (Total, Achieved, Active)
+  - Feedback Summary (Total Feedback, Average Rating)
+  - Performance Trend (Improving/Declining/Stable)
+- **Generate PDF Report**: Download professional PDF document with:
+  - Employee Information
+  - Performance Summary
+  - Tasks Summary
+  - Goals Summary
+  - Recent Feedback
+  - Performance Trends
+
+**Who can access:** 
+- Employees: Can generate their own reports
+- Managers/Owners: Can generate reports for any employee
+
+**How to Use:**
+1. Select an employee from the dropdown
+2. Click "📊 Preview Report" to see detailed metrics
+3. Click "📥 Generate PDF Report" to download PDF
+
+**Note:** If you see "No employees available", you need to add employees first through the Employees page.
+
+---
+
+### 8. 📤 Export (Data Export)
 
 **What it does:**
 - **CSV Export**: Export data in CSV format (Projects, Tasks, Employees, Performance, etc.)
 - **PDF Export**: Generate PDF reports (Performance reports, Project reports, Personal performance summary)
-- **Email Sharing**: Send reports via email (SMTP config needed)
 
 **Who can access:** Managers and Owners
+
+---
+
+## Employee Performance Reports
+
+### Overview
+
+The Reports page allows you to generate professional Employee Performance Reports based on performance metrics. The system uses a hybrid approach combining ML models and AI APIs for intelligent performance calculation.
+
+### How to Generate Reports
+
+1. **Navigate to Reports Page**: Click "📊 Reports" in the sidebar
+2. **Select Employee**: Choose an employee from the dropdown (employees see only themselves)
+3. **Preview Report**: Click "📊 Preview Report" to see detailed metrics
+4. **Generate PDF**: Click "📥 Generate PDF Report" to download a professional PDF
+
+### Report Contents
+
+The performance report includes:
+- **Employee Information**: Name, Email, Position, Report Date
+- **Performance Summary**: 
+  - Overall Performance Score (0-100%)
+  - Task Completion Rate
+  - On-Time Delivery Rate
+  - Rank among employees
+  - Performance Trend
+- **Tasks Summary**: Breakdown by status (Completed, In Progress, Pending)
+- **Goals Summary**: Total goals, achieved goals, active goals
+- **Recent Feedback**: Average rating and feedback count
+
+### If No Employees Available
+
+If you see "No employees available":
+- **For Owners/Managers**: Click "➡️ Go to Employees Page" button to add employees
+- **For Employees**: Contact your administrator to add your employee record
 
 ---
 
@@ -449,15 +495,75 @@ The system uses **8 essential agents** for automation:
 
 ---
 
-## AI Integration
+## AI Integration & Performance Calculation
 
 ### Overview
 
-The system uses **AI APIs exclusively** for all intelligent decision-making. All rule-based logic has been removed and replaced with AI-powered analysis.
+The system uses a **hybrid approach** combining:
+1. **ML Models** (Random Forest/XGBoost) - Primary method
+2. **AI API** (OpenAI/Anthropic/Gemini) - Fallback and intelligent analysis
+3. **Rule-based calculations** - Basic metrics
 
-### Supported Providers
+### Architecture Flow
 
-1. **OpenAI** (ChatGPT)
+```
+Employee Data → Performance Agent → ML Scorer → AI Fallback (if needed) → Performance Score
+```
+
+### Performance Calculation Process
+
+#### Step 1: Calculate Basic Metrics (Rule-based)
+- Total tasks
+- Completed tasks
+- Completion rate
+- On-time completion rate
+
+#### Step 2: Prepare Data for ML Model
+```python
+employee_data = {
+    "tasks": employee_tasks,
+    "feedbacks": self._get_feedbacks(employee_id),
+    "attendance": [],
+    "workload": active_tasks_count
+}
+```
+
+#### Step 3: ML Model Prediction
+- Uses Random Forest or XGBoost model
+- Extracts 4 key features:
+  1. **Task Quality (0-1)**: On-time completion bonus (+0.3), High priority completion (+0.2)
+  2. **Feedback Sentiment (0-1)**: Positive vs negative feedback ratio
+  3. **Attendance Trend (0-1)**: Recent attendance rate (last 30 days)
+  4. **Workload Balance (0-1)**: Optimal is 5-10 active tasks (0.5)
+- Outputs performance score (0-100)
+
+#### Step 4: AI Fallback (if ML not trained)
+If ML model is not trained, the system uses AI API to calculate score:
+```python
+# Sends data to AI API
+response = ai_client.chat(
+    [{"role": "user", "content": f"Calculate performance score (0-100): {data}"}],
+    system_prompt="Return only a number 0-100",
+    temperature=0.3,
+    max_tokens=50
+)
+```
+
+#### Step 5: AI Trend Analysis
+AI determines if performance is improving, declining, or stable:
+```python
+# Analyzes historical vs current performance
+response = ai_client.chat(
+    [{"role": "user", "content": f"Trend: current={score}, history={historical}"}],
+    system_prompt="Return one word: improving/declining/stable",
+    temperature=0.2,
+    max_tokens=10
+)
+```
+
+### Supported AI Providers
+
+1. **OpenAI** (GPT-3.5, GPT-4)
    - Models: GPT-4, GPT-3.5-turbo
    - Get API Key: https://platform.openai.com/api-keys
 
@@ -469,7 +575,7 @@ The system uses **AI APIs exclusively** for all intelligent decision-making. All
    - Models: Claude 3 Opus, Sonnet, Haiku
    - Get API Key: https://console.anthropic.com/
 
-### Configuration
+### AI Configuration
 
 Add to `.env`:
 ```env
@@ -492,6 +598,249 @@ ANTHROPIC_API_KEY=sk-ant-your-key-here
 - **Natural Language Query Processing**: AI understands complex questions
 - **AI-Generated Recommendations**: Performance improvement suggestions
 - **Intelligent Performance Alerts**: AI generates actionable recommendations
+- **Performance Trend Analysis**: AI determines if performance is improving/declining/stable
+
+### Example API Calls
+
+#### Fallback Score Calculation
+```python
+messages = [
+    {"role": "system", "content": "Return only a number 0-100"},
+    {"role": "user", "content": "Calculate performance score (0-100): {\"completion_rate\": 85, \"on_time_rate\": 90}"}
+]
+
+response = openai.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=messages,
+    temperature=0.3,
+    max_tokens=50
+)
+# Response: "87.5"
+```
+
+#### Trend Analysis
+```python
+messages = [
+    {"role": "system", "content": "Return one word"},
+    {"role": "user", "content": "Trend: current=85, history=[80, 82, 83, 84]. Return: improving/declining/stable"}
+]
+
+response = openai.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=messages,
+    temperature=0.2,
+    max_tokens=10
+)
+# Response: "improving"
+```
+
+---
+
+## ML Models & Training
+
+### Overview
+
+The system uses **Machine Learning models** instead of rule-based logic for intelligent decision-making:
+
+1. **Performance Scoring** - Random Forest/XGBoost
+2. **Notification Optimization** - Reinforcement Learning (Q-Learning)
+3. **Predictive Analytics** - Time-series Forecasting (LSTM/Prophet)
+4. **Goal Management** - Progress Trend Analysis
+5. **Promotion Classification** - Random Forest/XGBoost
+
+### 1. Performance Scoring Model
+
+**File**: `components/ml/performance_scorer.py`
+
+**Inputs**:
+- Task Quality (0-1)
+- Feedback Sentiment (0-1)
+- Attendance Trend (0-1)
+- Workload Balance (0-1)
+
+**Output**: Performance score (0-100)
+
+**Usage**:
+```python
+from components.ml.performance_scorer import PerformanceScorer
+
+scorer = PerformanceScorer(model_type="random_forest")
+score = scorer.predict(employee_data)
+```
+
+### 2. Training the Performance Model
+
+#### Quick Start
+
+```bash
+# Install ML dependencies
+pip install scikit-learn numpy pandas xgboost
+
+# Train with historical data (if you have performance records)
+python train_performance_model.py
+
+# Train with synthetic data (if you don't have enough historical data)
+python train_performance_model.py --use-synthetic --num-synthetic 100
+```
+
+#### Prerequisites
+
+1. **Install ML Dependencies**:
+   ```bash
+   pip install -r requirements_ml.txt
+   ```
+   Or individually:
+   ```bash
+   pip install scikit-learn numpy pandas xgboost
+   ```
+
+2. **Ensure You Have Training Data**:
+   - At least 10 performance records in the `performances` table
+   - Each record should have a `performance_score` (0-100)
+   - Associated tasks, feedbacks, and attendance data
+
+#### Training Methods
+
+**Method 1: Train with Historical Data (Recommended)**
+```bash
+python train_performance_model.py --model-type random_forest
+```
+
+Or with XGBoost:
+```bash
+python train_performance_model.py --model-type xgboost
+```
+
+**Method 2: Train with Synthetic Data**
+```bash
+python train_performance_model.py --model-type random_forest --use-synthetic --num-synthetic 100
+```
+
+This will:
+- Use any existing historical data
+- Generate 100 synthetic samples based on realistic patterns
+- Train the model on the combined dataset
+
+#### How Training Works
+
+1. **Data Collection**: Script collects data from Supabase (employees, tasks, feedbacks, performances, attendance)
+2. **Feature Extraction**: For each historical performance record, extracts:
+   - Task quality metrics
+   - Feedback sentiment
+   - Attendance trends
+   - Workload balance
+3. **Model Training**:
+   - Feature Scaling using StandardScaler
+   - Train/Test Split (80% training, 20% testing)
+   - Model Training (Random Forest or XGBoost)
+   - Evaluation (MSE and R² score)
+   - Model Saving to `models/performance_scorer.pkl`
+4. **Model Usage**: Once trained, the model is automatically loaded by `PerformanceAgent`
+
+#### Training Output
+
+After training, you'll see:
+```
+✅ Model trained. MSE: 45.23, R²: 0.87
+✅ Model saved to models/performance_scorer.pkl
+```
+
+**Metrics Explained:**
+- **MSE (Mean Squared Error)**: Lower is better (measures prediction error)
+- **R² (R-squared)**: Higher is better (0-1, measures model fit)
+  - 0.8+ = Excellent
+  - 0.6-0.8 = Good
+  - <0.6 = Needs improvement
+
+#### Model Configuration
+
+**Random Forest (Default)**:
+- n_estimators: 100 trees
+- max_depth: 10 levels
+- Pros: Fast, interpretable, handles non-linear relationships
+- Cons: Can overfit with small datasets
+
+**XGBoost**:
+- n_estimators: 100 trees
+- max_depth: 6 levels
+- learning_rate: 0.1
+- Pros: Often more accurate, handles complex patterns
+- Cons: Slower training, requires more data
+
+#### Verifying Model Training
+
+```python
+import os
+if os.path.exists("models/performance_scorer.pkl"):
+    print("✅ Model is trained and ready!")
+else:
+    print("❌ Model not found. Run training script first.")
+```
+
+#### Retraining the Model
+
+To retrain with new data:
+1. Delete old model (optional): `rm models/performance_scorer.pkl`
+2. Run training again: `python train_performance_model.py --model-type random_forest`
+
+The model will be retrained with all available data, including new records.
+
+#### Troubleshooting Training
+
+**Error: "scikit-learn not available"**
+```bash
+pip install scikit-learn
+```
+
+**Error: "Insufficient training data"**
+- Solution 1: Add more performance records to Supabase
+- Solution 2: Use synthetic data: `python train_performance_model.py --use-synthetic --num-synthetic 200`
+
+**Error: "XGBoost not available"**
+```bash
+pip install xgboost
+```
+Or use Random Forest instead: `python train_performance_model.py --model-type random_forest`
+
+**Low R² Score (<0.6)**
+- Collect more historical data (need 50+ samples)
+- Use synthetic data to supplement
+- Try XGBoost instead of Random Forest
+- Check data quality in Supabase
+
+### 3. Notification RL Agent
+
+**File**: `components/ml/notification_rl.py`
+
+**Learning**:
+- Learns when notifications are effective
+- Stops spamming automatically
+- Adapts to user response patterns
+
+**Actions**: `send`, `delay`, `skip`
+
+### 4. Predictive Analytics
+
+**File**: `components/ml/predictive_analytics.py`
+
+**Predictions**:
+- Future Performance (30-day forecast)
+- Burnout Risk (0-1 score)
+- Promotion Readiness (0-1 score)
+
+**Models**: Prophet (time-series) or LSTM
+
+### 5. Promotion Classifier
+
+**File**: `components/ml/promotion_classifier.py`
+
+**Inputs**:
+- Performance (0-1)
+- Consistency (0-1)
+- Skills (0-1)
+- Leadership (0-1)
+
+**Output**: Promotion probability (0-1)
 
 ---
 
@@ -534,103 +883,6 @@ AI-powered event handlers (`components/agents/event_handlers.py`):
 3. **Extensibility**: Easy to add new event types and handlers
 4. **Traceability**: Full event history for debugging
 5. **Flexibility**: Change behavior by updating handlers
-
----
-
-## ML Models
-
-### Overview
-
-The system uses **Machine Learning models** instead of rule-based logic for intelligent decision-making:
-
-1. **Performance Scoring** - Random Forest/XGBoost
-2. **Notification Optimization** - Reinforcement Learning (Q-Learning)
-3. **Predictive Analytics** - Time-series Forecasting (LSTM/Prophet)
-4. **Goal Management** - Progress Trend Analysis
-5. **Promotion Classification** - Random Forest/XGBoost
-
-### 1. Performance Scoring Model
-
-**File**: `components/ml/performance_scorer.py`
-
-**Inputs**:
-- Task Quality (0-1)
-- Feedback Sentiment (0-1)
-- Attendance Trend (0-1)
-- Workload Balance (0-1)
-
-**Output**: Performance score (0-100)
-
-**Usage**:
-```python
-from components.ml.performance_scorer import PerformanceScorer
-
-scorer = PerformanceScorer(model_type="random_forest")
-score = scorer.predict(employee_data)
-```
-
-### 2. Notification RL Agent
-
-**File**: `components/ml/notification_rl.py`
-
-**Learning**:
-- Learns when notifications are effective
-- Stops spamming automatically
-- Adapts to user response patterns
-
-**Actions**: `send`, `delay`, `skip`
-
-**Usage**:
-```python
-from components.ml.notification_rl import NotificationRL
-
-rl_agent = NotificationRL()
-decision = rl_agent.should_send_notification(notification_data)
-```
-
-### 3. Predictive Analytics
-
-**File**: `components/ml/predictive_analytics.py`
-
-**Predictions**:
-- Future Performance (30-day forecast)
-- Burnout Risk (0-1 score)
-- Promotion Readiness (0-1 score)
-
-**Models**: Prophet (time-series) or LSTM
-
-### 4. Promotion Classifier
-
-**File**: `components/ml/promotion_classifier.py`
-
-**Inputs**:
-- Performance (0-1)
-- Consistency (0-1)
-- Skills (0-1)
-- Leadership (0-1)
-
-**Output**: Promotion probability (0-1)
-
-**Usage**:
-```python
-from components.agents.promotion_agent import PromotionAgent
-
-promotion_agent = PromotionAgent(data_manager)
-analysis = promotion_agent.analyze_promotion_eligibility(employee_id)
-```
-
-### Installation
-
-```bash
-pip install -r requirements_ml.txt
-```
-
-**Dependencies**:
-- scikit-learn
-- xgboost
-- prophet
-- tensorflow (optional, for LSTM)
-- stable-baselines3 (optional, for advanced RL)
 
 ---
 
@@ -677,6 +929,12 @@ Authorization: Bearer <atlas_jwt_token>
 - `GET /api/v1/reports/user/{user_id}/quarterly` - Generate quarterly user report
 - `GET /api/v1/reports/team/{org_id}/quarterly` - Generate quarterly team report (Manager only)
 
+#### Employees
+- `GET /api/v1/employees` - Get all employees
+- `POST /api/v1/employees` - Create employee (Manager only)
+- `PUT /api/v1/employees/{employee_id}` - Update employee (Manager only)
+- `DELETE /api/v1/employees/{employee_id}` - Delete employee (Manager only)
+
 ### Interactive Documentation
 
 Visit `http://localhost:8003/docs` for Swagger UI with:
@@ -684,6 +942,65 @@ Visit `http://localhost:8003/docs` for Swagger UI with:
 - Try it out functionality
 - Request/response schemas
 - Authentication requirements
+
+---
+
+## Frontend-Backend Separation
+
+### Architecture Overview
+
+The application is separated into:
+
+### Backend (FastAPI)
+- **Location**: `api/` directory
+- **Main file**: `api/main.py`
+- **Purpose**: All business logic, data management, and agent operations
+- **Endpoints**: 
+  - `/api/dashboard/*` - Dashboard data endpoints
+  - `/api/frontend/*` - Frontend-specific endpoints (auth, goals, feedback, reports, etc.)
+
+### Frontend (Streamlit)
+- **Location**: `app.py`
+- **Purpose**: Pure UI layer that calls backend API
+- **API Client**: `components/managers/api_client.py`
+
+### How to Run
+
+#### 1. Start Backend
+```bash
+cd api
+uvicorn main:app --reload --port 8003
+```
+
+Or:
+```bash
+python -m api.main
+```
+
+#### 2. Start Frontend
+```bash
+streamlit run app.py
+```
+
+### Configuration
+
+Set environment variable for API URL:
+```bash
+export API_BASE_URL=http://localhost:8003
+```
+
+Or in `.env`:
+```
+API_BASE_URL=http://localhost:8003
+```
+
+### Benefits
+
+1. **Separation of Concerns**: UI logic separate from business logic
+2. **Scalability**: Backend can be scaled independently
+3. **Reusability**: API can be used by other clients (mobile, web, etc.)
+4. **Testing**: Backend and frontend can be tested independently
+5. **Deployment**: Can deploy frontend and backend separately
 
 ---
 
@@ -696,7 +1013,6 @@ The MCP (Model Context Protocol) server provides automation tools for performanc
 ### Setup
 
 #### 1. Install Dependencies
-
 ```bash
 pip install mcp httpx
 ```
@@ -704,7 +1020,6 @@ pip install mcp httpx
 #### 2. Configure Claude Desktop
 
 Add to `claude_desktop_config.json`:
-
 ```json
 {
   "mcpServers": {
@@ -775,12 +1090,18 @@ project/
 ├── requirements.txt                # Python dependencies
 ├── requirements_ml.txt            # ML dependencies
 ├── supabase_schema.sql            # Database schema
+├── train_performance_model.py     # ML model training script
 ├── api/                            # FastAPI backend
 │   ├── main.py                    # FastAPI app
 │   ├── database.py                # Database setup
 │   ├── models.py                  # Database models
 │   ├── dependencies.py           # JWT validation
 │   ├── routes/                    # API routes
+│   │   ├── dashboard.py
+│   │   ├── employees.py
+│   │   ├── frontend.py
+│   │   ├── reports.py
+│   │   └── ...
 │   └── services/                  # Services
 ├── components/
 │   ├── managers/
@@ -788,6 +1109,7 @@ project/
 │   │   ├── supabase_client.py      # Supabase client
 │   │   ├── auth_manager.py         # Authentication system
 │   │   ├── ai_client.py            # AI client
+│   │   ├── api_client.py           # API client
 │   │   └── event_bus.py            # Event bus
 │   ├── agents/                     # 8 essential agents
 │   │   ├── performance_agent.py
@@ -797,7 +1119,8 @@ project/
 │   │   ├── goal_agent.py
 │   │   ├── feedback_agent.py
 │   │   ├── promotion_agent.py
-│   │   └── event_handlers.py
+│   │   ├── event_handlers.py
+│   │   └── professional_report_generator.py
 │   └── ml/                         # ML models
 │       ├── performance_scorer.py
 │       ├── notification_rl.py
@@ -836,10 +1159,17 @@ project/
 - **AI**: OpenAI, Anthropic, Google Gemini
 - **ML**: scikit-learn, XGBoost, Prophet, TensorFlow
 - **MCP Server**: Model Context Protocol for AI integration
+- **PDF Generation**: ReportLab
 
 ---
 
 ## Troubleshooting
+
+### No Employees Available?
+- Go to **👥 Employees** page
+- Click **➕ Add Employee** tab
+- Add at least one employee
+- Return to Reports page to generate reports
 
 ### No Performance Data?
 - Ensure tasks are created and assigned
@@ -872,10 +1202,20 @@ project/
 - Make sure library is installed (`pip install openai` or `google-generativeai`)
 - Check API key has credits/quota
 
+### ML Model Not Working?
+- Train the model first: `python train_performance_model.py`
+- Check if model exists: `models/performance_scorer.pkl`
+- If not trained, system will use AI fallback or weighted average
+
 ### MCP Server Not Working?
 - Ensure MCP package is installed: `pip install mcp`
 - Check paths in configuration are absolute
 - Verify you're running from project root
+
+### Report Generation Fails?
+- Ensure ReportLab is installed: `pip install reportlab`
+- Check if employee exists in database
+- Verify employee has performance data (tasks, goals, etc.)
 
 ---
 

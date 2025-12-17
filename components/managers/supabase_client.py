@@ -266,7 +266,21 @@ class SupabaseClient:
     
     def update_goal(self, goal_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Update goal"""
-        response = self.client.table("performance_goals").update(data).eq("id", goal_id).execute()
+        # Filter out invalid fields and map deadline to target_date if needed
+        valid_fields = ["title", "description", "goal_type", "target_value", "current_value", 
+                       "start_date", "target_date", "status", "updated_at"]
+        filtered_data = {}
+        for key, value in data.items():
+            if key in valid_fields:
+                filtered_data[key] = value
+            elif key == "deadline" and "target_date" not in filtered_data:
+                # Map deadline to target_date if deadline is provided but target_date is not
+                filtered_data["target_date"] = value
+        
+        # Remove None values to avoid clearing fields unintentionally
+        filtered_data = {k: v for k, v in filtered_data.items() if v is not None}
+        
+        response = self.client.table("performance_goals").update(filtered_data).eq("id", goal_id).execute()
         return self._format_item(response.data[0]) if response.data else {}
     
     # Feedback
@@ -469,5 +483,10 @@ class SupabaseClient:
                 formatted[key] = float(value)
             else:
                 formatted[key] = value
+        
+        # Map target_date to deadline for backward compatibility with UI code
+        if "target_date" in formatted and "deadline" not in formatted:
+            formatted["deadline"] = formatted["target_date"]
+        
         return formatted
 
