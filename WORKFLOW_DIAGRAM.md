@@ -1,64 +1,37 @@
 # Workflow Diagram
 
-Complete workflow diagrams for the Employee Performance Report System showing all major processes and user flows.
+Complete unified workflow diagram for the Employee Performance Report System.
 
 ---
 
-## 1. Authentication & Login Workflow
-
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        USER LOGIN WORKFLOW                       │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    EMPLOYEE PERFORMANCE REPORT SYSTEM                                        │
+│                                         COMPLETE WORKFLOW DIAGRAM                                           │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                        1. USER AUTHENTICATION                                               │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
 User Opens Application
          │
          ▼
 ┌────────────────────┐
 │  Login Page        │
-│  (Streamlit UI)    │
+│  (Enter Email/Pass) │
 └─────────┬──────────┘
           │
-          │ User Enters Credentials
-          │ (Email + Password)
           ▼
-┌─────────────────────────────────────┐
-│  Check: USE_API_BACKEND?           │
-│  • true  → API Mode                │
-│  • false → Direct Mode              │
-└─────────┬───────────────────────────┘
-          │
-    ┌─────┴─────┐
-    │           │
-    ▼           ▼
-┌─────────┐ ┌──────────────────┐
-│ API     │ │ Direct Auth      │
-│ Client  │ │ (AuthManager)     │
-└────┬────┘ └────────┬──────────┘
-     │               │
-     │               ▼
-     │      ┌──────────────────────┐
-     │      │ Try Supabase Auth    │
-     │      │ (if configured)      │
-     │      └──────────┬───────────┘
-     │                 │
-     │                 ▼
-     │      ┌──────────────────────┐
-     │      │ Fallback: Local Auth │
-     │      │ (Hash password)      │
-     │      └──────────┬───────────┘
-     │                 │
-     └─────────────────┘
-              │
-              ▼
-    ┌─────────────────────┐
-    │ Authentication      │
-    │ Result?             │
-    └─────┬───────────────┘
-          │
-    ┌─────┴─────┐
-    │           │
-    ▼           ▼
+┌──────────────────────────────┐
+│  Authentication Check         │
+│  • Supabase Auth (Primary)    │
+│  • Local Auth (Fallback)     │
+└──────────┬───────────────────┘
+           │
+      ┌────┴────┐
+      │         │
+      ▼         ▼
 ┌─────────┐ ┌──────────────┐
 │ Success │ │ Failed       │
 └────┬────┘ └──────┬───────┘
@@ -66,500 +39,24 @@ User Opens Application
      │             ▼
      │      ┌──────────────┐
      │      │ Show Error   │
-     │      │ "Invalid     │
-     │      │  credentials" │
+     │      │ Return to    │
+     │      │ Login        │
      │      └──────────────┘
      │
      ▼
-┌─────────────────────┐
-│ Set Session State   │
-│ • authenticated=true│
-│ • user={email, role,│
-│   name, id}         │
-└──────────┬──────────┘
-           │
-           ▼
-┌─────────────────────┐
-│ Redirect to         │
-│ Dashboard           │
-└─────────────────────┘
-```
-
----
-
-## 2. Task Management Workflow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      TASK MANAGEMENT WORKFLOW                    │
-└─────────────────────────────────────────────────────────────────┘
-
-User Navigates to Projects Page
-         │
-         ▼
 ┌────────────────────┐
-│  Projects Page     │
-│  (View/Create)     │
-└─────────┬──────────┘
-          │
-    ┌─────┴─────┐
-    │           │
-    ▼           ▼
-┌─────────┐ ┌──────────────┐
-│ View    │ │ Create Task  │
-│ Tasks   │ │              │
-└────┬────┘ └──────┬───────┘
-     │             │
-     │             ▼
-     │     ┌───────────────┐
-     │     │ Fill Form:    │
-     │     │ • Title       │
-     │     │ • Description │
-     │     │ • Priority    │
-     │     │ • Due Date    │
-     │     │ • Assignee    │
-     │     │ • Project     │
-     │     └───────┬───────┘
-     │             │
-     │             ▼
-     │     ┌───────────────┐
-     │     │ Save Task    │
-     │     │ (DataManager)│
-     │     └───────┬───────┘
-     │             │
-     │             ▼
-     │     ┌──────────────────────┐
-     │     │ Publish Event:       │
-     │     │ TASK_CREATED         │
-     │     └───────┬──────────────┘
-     │             │
-     │             ▼
-     │     ┌──────────────────────┐
-     │     │ Event Bus            │
-     │     │ → Event Handlers     │
-     │     │ → NotificationAgent  │
-     │     │ → PerformanceAgent   │
-     │     └──────────────────────┘
-     │
-     ▼
-┌────────────────────┐
-│  Task List View    │
-│  • Filter by Status│
-│  • Filter by User  │
-│  • Edit/Delete     │
-└─────────┬──────────┘
-          │
-          │ User Updates Task Status
-          ▼
-┌────────────────────┐
-│  Update Task       │
-│  (Status Change)   │
+│  Set Session      │
+│  • authenticated  │
+│  • user (role)    │
 └─────────┬──────────┘
           │
           ▼
-┌──────────────────────┐
-│ Check: Status =       │
-│ "completed"?         │
-└─────┬────────────────┘
-      │
-  ┌───┴───┐
-  │       │
-  ▼       ▼
-┌─────┐ ┌──────────────────┐
-│ Yes │ │ No               │
-└──┬──┘ └──────────────────┘
-   │
-   ▼
-┌──────────────────────┐
-│ Publish Event:        │
-│ TASK_COMPLETED        │
-└───────────┬───────────┘
-            │
-            ▼
-┌──────────────────────────────┐
-│ Event Cascade:                │
-│ 1. EventHandlers              │
-│    → AI Decision: Update      │
-│       Performance?            │
-│ 2. PerformanceAgent           │
-│    → Re-evaluate Employee     │
-│ 3. NotificationAgent          │
-│    → RL: Should notify?      │
-│    → Send notification         │
-│ 4. GoalAgent                  │
-│    → Check goal progress      │
-└──────────────────────────────┘
-```
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                        2. MAIN DASHBOARD                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
----
-
-## 3. Performance Evaluation Workflow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   PERFORMANCE EVALUATION WORKFLOW                │
-└─────────────────────────────────────────────────────────────────┘
-
-Trigger: User Requests Performance Report OR Task Completed
-         │
-         ▼
 ┌────────────────────┐
-│ PerformanceAgent   │
-│ .evaluate_employee()│
-└─────────┬──────────┘
-          │
-          ▼
-┌──────────────────────────────┐
-│ Fetch Employee Data           │
-│ • Tasks (via DataManager)     │
-│ • Feedback (via DataManager)  │
-│ • Goals (via GoalAgent)       │
-│ • Historical Performance      │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Calculate Basic Metrics      │
-│ • Total Tasks                 │
-│ • Completed Tasks             │
-│ • Completion Rate (%)         │
-│ • On-Time Rate (%)            │
-│ • Active Tasks Count          │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Prepare ML Features           │
-│ • Task Quality (0-1)          │
-│ • Feedback Sentiment (0-1)    │
-│ • Workload Balance (0-1)      │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Check ML Model Status         │
-│ models/performance_scorer.pkl │
-└─────┬─────────────────────────┘
-      │
-  ┌───┴───┐
-  │       │
-  ▼       ▼
-┌─────┐ ┌──────────────────────────┐
-│ Yes │ │ No (Model Not Trained)   │
-└──┬──┘ └──────┬───────────────────┘
-   │           │
-   │           ▼
-   │   ┌───────────────────────┐
-   │   │ Check AI Availability │
-   │   │ (USE_AI flag)         │
-   │   └───────┬───────────────┘
-   │           │
-   │       ┌───┴───┐
-   │       │       │
-   │       ▼       ▼
-   │   ┌─────┐ ┌──────────────────┐
-   │   │ Yes │ │ No               │
-   │   └──┬──┘ └───┬───────────────┘
-   │      │        │
-   │      │        ▼
-   │      │   ┌──────────────┐
-   │      │   │ Simple       │
-   │      │   │ Weighted     │
-   │      │   │ Formula      │
-   │      │   └──────┬───────┘
-   │      │          │
-   │      ▼          │
-   │ ┌──────────┐   │
-   │ │ AI API   │   │
-   │ │ Call     │   │
-   │ │ (OpenAI/ │   │
-   │ │ Gemini/  │   │
-   │ │ Claude)  │   │
-   │ └────┬─────┘   │
-   │      │         │
-   └──────┴─────────┘
-            │
-            ▼
-┌──────────────────────────────┐
-│ Performance Score (0-100)     │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Calculate Rank                │
-│ • Get all performance scores  │
-│ • Sort descending             │
-│ • Find position               │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Calculate Trend               │
-│ • Get historical scores       │
-│ • AI Analysis:                │
-│   - improving                 │
-│   - declining                │
-│   - stable                   │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Save Performance Data         │
-│ (DataManager.save_data)       │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Publish Event:                │
-│ PERFORMANCE_EVALUATED         │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Event Handlers:               │
-│ • NotificationAgent            │
-│   (if low performance)        │
-│ • ReportingAgent              │
-│   (update reports)            │
-│ • GoalAgent                   │
-│   (check goal progress)       │
-└──────────────────────────────┘
-```
-
----
-
-## 4. Report Generation Workflow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      REPORT GENERATION WORKFLOW                  │
-└─────────────────────────────────────────────────────────────────┘
-
-User Navigates to Reports Page
-         │
-         ▼
-┌────────────────────┐
-│  Reports Page      │
-│  (Streamlit UI)    │
-└─────────┬──────────┘
-          │
-          │ User Selects Employee
-          ▼
-┌────────────────────┐
-│  Employee Dropdown │
-│  (Role-based)      │
-└─────────┬──────────┘
-          │
-    ┌─────┴─────┐
-    │           │
-    ▼           ▼
-┌─────────┐ ┌──────────────┐
-│ Preview  │ │ Generate PDF  │
-│ Report   │ │              │
-└────┬─────┘ └──────┬───────┘
-     │              │
-     │              ▼
-     │      ┌──────────────────┐
-     │      │ Professional     │
-     │      │ Report Generator │
-     │      └──────────┬───────┘
-     │                 │
-     │                 ▼
-     │      ┌──────────────────┐
-     │      │ Fetch Data:      │
-     │      │ • Employee Info   │
-     │      │ • Performance     │
-     │      │ • Tasks           │
-     │      │ • Goals           │
-     │      │ • Feedback       │
-     │      └──────────┬───────┘
-     │                 │
-     │                 ▼
-     │      ┌──────────────────┐
-     │      │ If Performance   │
-     │      │ Not Evaluated:    │
-     │      │ → Trigger        │
-     │      │   PerformanceAgent│
-     │      └──────────┬───────┘
-     │                 │
-     │                 ▼
-     │      ┌──────────────────┐
-     │      │ Create PDF       │
-     │      │ (ReportLab)      │
-     │      │ • Header/Footer  │
-     │      │ • Employee Info  │
-     │      │ • Performance    │
-     │      │   Summary        │
-     │      │ • Tasks Summary  │
-     │      │   (with Chart)   │
-     │      │ • Goals Summary  │
-     │      │   (with Chart)   │
-     │      │ • Feedback       │
-     │      │ • Trends         │
-     │      └──────────┬───────┘
-     │                 │
-     │                 ▼
-     │      ┌──────────────────┐
-     │      │ Save to          │
-     │      │ exports/         │
-     │      └──────────┬───────┘
-     │                 │
-     │                 ▼
-     │      ┌──────────────────┐
-     │      │ Return PDF File   │
-     │      │ → Download Link  │
-     │      └──────────────────┘
-     │
-     ▼
-┌────────────────────┐
-│  Display Metrics   │
-│  • Performance     │
-│    Score           │
-│  • Completion Rate │
-│  • On-Time Rate    │
-│  • Rank            │
-│  • Trend           │
-│  • Tasks Summary   │
-│  • Goals Summary   │
-│  • Feedback        │
-└────────────────────┘
-```
-
----
-
-## 5. Goal Management Workflow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        GOAL MANAGEMENT WORKFLOW                  │
-└─────────────────────────────────────────────────────────────────┘
-
-User Navigates to Goals Page
-         │
-         ▼
-┌────────────────────┐
-│  Goals Page        │
-│  (View/Create)     │
-└─────────┬──────────┘
-          │
-    ┌─────┴─────┐
-    │           │
-    ▼           ▼
-┌─────────┐ ┌──────────────┐
-│ View    │ │ Create Goal  │
-│ Goals   │ │              │
-└────┬────┘ └──────┬───────┘
-     │             │
-     │             ▼
-     │     ┌───────────────┐
-     │     │ Fill Form:    │
-     │     │ • Title       │
-     │     │ • Description │
-     │     │ • Target Date │
-     │     │ • Employee    │
-     │     │ • Progress %  │
-     │     └───────┬───────┘
-     │             │
-     │             ▼
-     │     ┌───────────────┐
-     │     │ Save Goal     │
-     │     │ (GoalAgent)   │
-     │     └───────┬───────┘
-     │             │
-     │             ▼
-     │     ┌──────────────────┐
-     │     │ Publish Event:    │
-     │     │ GOAL_CREATED      │
-     │     └───────┬───────────┘
-     │             │
-     │             ▼
-     │     ┌──────────────────┐
-     │     │ Event Handlers   │
-     │     │ → Notification   │
-     │     └──────────────────┘
-     │
-     │ User Updates Goal Progress
-     ▼
-┌────────────────────┐
-│  Update Progress   │
-│  (0-100%)          │
-└─────────┬──────────┘
-          │
-          ▼
-┌──────────────────────┐
-│ GoalAgent            │
-│ .update_progress()   │
-└──────────┬───────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ AI-Determined Goal Status    │
-│ • active                      │
-│ • completed                   │
-│ • overdue                     │
-│ • at_risk                     │
-│ • on_hold                     │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ ML-Based Progress Trend      │
-│ Analysis                      │
-│ • Analyze progress pattern    │
-│ • Predict completion date     │
-│ • Auto-adjust if needed       │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Publish Event:                │
-│ GOAL_PROGRESS_UPDATED         │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Check: Progress = 100%?      │
-└─────┬────────────────────────┘
-      │
-  ┌───┴───┐
-  │       │
-  ▼       ▼
-┌─────┐ ┌──────┐
-│ Yes │ │ No   │
-└──┬──┘ └──────┘
-   │
-   ▼
-┌──────────────────────────────┐
-│ Publish Event:                │
-│ GOAL_COMPLETED                │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Event Handlers:               │
-│ • NotificationAgent            │
-│   (congratulate employee)     │
-│ • PerformanceAgent            │
-│   (update performance)        │
-│ • ReportingAgent              │
-│   (update reports)            │
-└──────────────────────────────┘
-```
-
----
-
-## 6. Feedback Workflow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         FEEDBACK WORKFLOW                       │
-└─────────────────────────────────────────────────────────────────┘
-
-User Navigates to Feedback Page
-         │
-         ▼
-┌────────────────────┐
-│  Feedback Page     │
+│  Dashboard         │
 │  (Role-based View) │
 └─────────┬──────────┘
           │
@@ -573,294 +70,478 @@ User Navigates to Feedback Page
      │             │
      │             ▼
      │     ┌───────────────┐
-     │     │ View Received │
-     │     │ Feedback      │
-     │     │ • Ask Question│
-     │     │ • View Thread │
-     │     └───────────────┘
+     │     │ View My Data   │
+     │     │ • Tasks        │
+     │     │ • Goals        │
+     │     │ • Performance  │
+     │     │ • Feedback     │
+     │     └───────┬───────┘
+     │             │
+     │             └──────────────┐
+     │                            │
+     ▼                            │
+┌────────────────────┐            │
+│  Manager Actions   │            │
+│  • Projects        │            │
+│  • Employees       │            │
+│  • Reports         │            │
+│  • Goals           │            │
+│  • Feedback        │            │
+└─────────┬──────────┘            │
+          │                        │
+          └────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                        3. TASK MANAGEMENT                                                    │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+User Creates/Updates Task
+         │
+         ▼
+┌────────────────────┐
+│  Task Form         │
+│  • Title           │
+│  • Description     │
+│  • Priority        │
+│  • Due Date        │
+│  • Assignee        │
+│  • Project         │
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│  Save Task         │
+│  (DataManager)     │
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│  Publish Event:    │
+│  TASK_CREATED/     │
+│  TASK_UPDATED      │
+└─────────┬──────────┘
+          │
+          │ Task Status = "completed"?
+          ▼
+┌────────────────────┐
+│  Publish Event:    │
+│  TASK_COMPLETED    │
+└─────────┬──────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                        4. EVENT-DRIVEN PROCESSING                                            │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────┐
+│  Event Bus         │
+│  • Receive Event   │
+│  • Store History   │
+│  • Find Handlers   │
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│  Event Handlers    │
+│  (AI-Powered)      │
+└─────────┬──────────┘
+          │
+          ├─────────────────────────────────────────────────────────────┐
+          │                                                               │
+          ▼                                                               ▼
+┌────────────────────┐                                        ┌────────────────────┐
+│ AI Decision:       │                                        │ AI Decision:        │
+│ Update Performance?│                                        │ Send Notification?  │
+└─────────┬──────────┘                                        └─────────┬──────────┘
+          │                                                              │
+          ▼                                                              ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                        5. PERFORMANCE EVALUATION                                             │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────┐
+│ PerformanceAgent   │
+│ .evaluate_employee()│
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│  Fetch Data         │
+│  • Tasks            │
+│  • Feedback         │
+│  • Goals            │
+│  • History          │
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│  Calculate Metrics  │
+│  • Completion Rate  │
+│  • On-Time Rate     │
+│  • Task Quality     │
+│  • Workload         │
+└─────────┬──────────┘
+          │
+          ▼
+┌─────────────────────────────────────┐
+│  Performance Score Calculation       │
+│                                      │
+│  ┌──────────────────────────────┐  │
+│  │ Check ML Model Status        │  │
+│  └───────┬──────────────────────┘  │
+│          │                          │
+│      ┌───┴───┐                      │
+│      │       │                      │
+│      ▼       ▼                      │
+│  ┌─────┐ ┌──────────────────┐      │
+│  │ Yes │ │ No               │      │
+│  └──┬──┘ └───┬───────────────┘      │
+│     │        │                      │
+│     │        ▼                      │
+│     │   ┌──────────────┐            │
+│     │   │ Check AI     │            │
+│     │   │ Available?   │            │
+│     │   └───┬──────────┘            │
+│     │       │                       │
+│     │   ┌───┴───┐                   │
+│     │   │       │                   │
+│     │   ▼       ▼                   │
+│     │ ┌─────┐ ┌──────────────┐     │
+│     │ │ Yes │ │ No            │     │
+│     │ └──┬──┘ └───┬───────────┘     │
+│     │    │        │                  │
+│     │    │        ▼                  │
+│     │    │   ┌──────────────┐        │
+│     │    │   │ Simple       │        │
+│     │    │   │ Formula      │        │
+│     │    │   └──────┬───────┘        │
+│     │    │          │                │
+│     │    ▼          │                │
+│     │ ┌──────────┐  │                │
+│     │ │ AI API   │  │                │
+│     │ │ Call     │  │                │
+│     │ └────┬─────┘  │                │
+│     │      │        │                │
+│     └──────┴────────┘                │
+│            │                         │
+│            ▼                         │
+│  ┌──────────────────────┐           │
+│  │ Performance Score     │           │
+│  │ (0-100)               │           │
+│  └──────────┬────────────┘           │
+│             │                        │
+│             ▼                        │
+│  ┌──────────────────────┐           │
+│  │ Calculate Rank &     │           │
+│  │ Trend (AI Analysis)   │           │
+│  └──────────┬────────────┘           │
+│             │                        │
+│             ▼                        │
+│  ┌──────────────────────┐           │
+│  │ Save Performance      │           │
+│  │ (DataManager)         │           │
+│  └──────────┬────────────┘           │
+│             │                        │
+│             ▼                        │
+│  ┌──────────────────────┐           │
+│  │ Publish Event:        │           │
+│  │ PERFORMANCE_EVALUATED  │           │
+│  └───────────────────────┘           │
+└──────────────────────────────────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                        6. NOTIFICATION SYSTEM                                                │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────┐
+│ NotificationAgent  │
+│ (RL Model Check)   │
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│  Should Send?      │
+│  (RL Decision)     │
+└─────────┬──────────┘
+          │
+      ┌───┴───┐
+      │       │
+      ▼       ▼
+┌─────────┐ ┌──────────────┐
+│ Yes     │ │ No (Delay/   │
+│         │ │ Skip)        │
+└────┬────┘ └──────────────┘
      │
      ▼
 ┌────────────────────┐
-│  Create Feedback   │
-│  (Manager Only)    │
+│  AI Generate        │
+│  Message            │
 └─────────┬──────────┘
           │
           ▼
-┌──────────────────────────────┐
-│ Fill Form:                   │
-│ • Employee                   │
-│ • Category                   │
-│ • Rating (1-5)               │
-│ • Message                    │
-│ • Type (positive/negative)  │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ FeedbackAgent                 │
-│ .create_feedback()            │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ AI-Powered Analysis          │
-│ • Sentiment Analysis          │
-│ • Extract Key Points         │
-│ • Generate Summary           │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Save Feedback                 │
-│ (DataManager)                 │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Publish Event:                │
-│ FEEDBACK_CREATED               │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Event Handlers:               │
-│ • NotificationAgent            │
-│   (notify employee)           │
-│ • PerformanceAgent            │
-│   (update sentiment score)    │
-└──────────────────────────────┘
-           │
-           │ Employee Responds
-           ▼
-┌──────────────────────────────┐
-│ FeedbackAgent                 │
-│ .respond_to_feedback()        │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Update Thread                 │
-│ (Conversation History)        │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Publish Event:                │
-│ FEEDBACK_RESPONDED            │
-└──────────────────────────────┘
-```
+┌────────────────────┐
+│  Send Notification │
+│  • In-app          │
+│  • Email (optional)│
+└─────────┬──────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                        7. GOAL MANAGEMENT                                                   │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
----
-
-## 7. Event-Driven Workflow (Complete Cascade)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    EVENT-DRIVEN WORKFLOW CASCADE                 │
-└─────────────────────────────────────────────────────────────────┘
-
-Action Occurs (e.g., Task Completed)
+User Creates/Updates Goal
          │
          ▼
 ┌────────────────────┐
-│ Agent Publishes    │
-│ Event to Event Bus │
+│  GoalAgent         │
+│  • Save Goal       │
+│  • Track Progress  │
 └─────────┬──────────┘
           │
           ▼
-┌──────────────────────────────┐
-│ Event Bus Processing         │
-│ • Store in Event History      │
-│ • Find Subscribed Handlers    │
-│ • Dispatch to All Handlers    │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ EventHandlers                 │
-│ .handle_[event_type]()        │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ AI Decision Making            │
-│ • Should notify?             │
-│ • Should update performance?  │
-│ • Should check goals?         │
-│ • Should send alert?          │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Execute Actions Based on      │
-│ AI Decisions                  │
-└──────────┬───────────────────┘
-           │
-           ├─────────────────────────────────┐
-           │                                 │
-           ▼                                 ▼
-┌──────────────────────┐        ┌──────────────────────┐
-│ NotificationAgent    │        │ PerformanceAgent    │
-│ • RL Model:          │        │ • Re-evaluate       │
-│   Should send now?   │        │ • Update score      │
-│ • AI: Generate       │        │ • Publish           │
-│   message            │        │   PERFORMANCE_      │
-│ • Send notification  │        │   EVALUATED          │
-└──────────┬───────────┘        └──────────┬─────────┘
-           │                                │
-           │                                │
-           ▼                                ▼
-┌──────────────────────┐        ┌──────────────────────┐
-│ GoalAgent            │        │ ReportingAgent       │
-│ • Check progress     │        │ • Update reports      │
-│ • Update status      │        │ • Calculate health    │
-│ • Publish            │        │ • Detect risks        │
-│   GOAL_PROGRESS_     │        │ • Publish             │
-│   UPDATED            │        │   PROJECT_HEALTH_    │
-└──────────┬───────────┘        │   CHANGED             │
-           │                    └───────────────────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Cascade Continues...          │
-│ New Events → New Handlers      │
-│ → More Actions                 │
-└──────────────────────────────┘
-```
+┌────────────────────┐
+│  AI-Determined      │
+│  Goal Status       │
+│  • active          │
+│  • completed       │
+│  • overdue         │
+│  • at_risk         │
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│  ML Progress Trend │
+│  Analysis          │
+│  • Predict         │
+│  • Auto-adjust     │
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│  Publish Event:    │
+│  GOAL_PROGRESS_     │
+│  UPDATED/           │
+│  GOAL_COMPLETED     │
+└─────────┬──────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                        8. FEEDBACK SYSTEM                                                    │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
----
-
-## 8. Complete User Journey Workflow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      COMPLETE USER JOURNEY                       │
-└─────────────────────────────────────────────────────────────────┘
-
-Start: User Opens Application
+Manager Creates Feedback
          │
          ▼
 ┌────────────────────┐
-│  Login Page        │
-│  → Authenticate    │
+│  FeedbackAgent     │
+│  • Save Feedback   │
+│  • AI Analysis     │
 └─────────┬──────────┘
           │
           ▼
 ┌────────────────────┐
-│  Dashboard         │
-│  → View Metrics    │
-│  → View Charts     │
+│  AI Sentiment       │
+│  Analysis           │
+│  • Extract Points   │
+│  • Generate Summary  │
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│  Publish Event:    │
+│  FEEDBACK_CREATED   │
+└─────────┬──────────┘
+          │
+          │ Employee Responds
+          ▼
+┌────────────────────┐
+│  Update Thread     │
+│  (Conversation)     │
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│  Publish Event:    │
+│  FEEDBACK_RESPONDED│
+└─────────┬──────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                        9. REPORT GENERATION                                                 │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+User Requests Report
+         │
+         ▼
+┌────────────────────┐
+│  Select Employee   │
+│  (Role-based)      │
 └─────────┬──────────┘
           │
     ┌─────┴─────┐
     │           │
     ▼           ▼
 ┌─────────┐ ┌──────────────┐
-│ Manager │ │ Employee     │
-│ Flow    │ │ Flow         │
+│ Preview │ │ Generate PDF  │
+│ Report  │ │              │
 └────┬────┘ └──────┬───────┘
      │             │
      │             ▼
-     │     ┌───────────────┐
-     │     │ View My Tasks │
-     │     │ → Update      │
-     │     │   Status      │
-     │     └───────┬───────┘
-     │             │
-     │             ▼
-     │     ┌───────────────┐
-     │     │ View My Goals │
-     │     │ → Update      │
-     │     │   Progress    │
-     │     └───────┬───────┘
-     │             │
-     │             ▼
-     │     ┌───────────────┐
-     │     │ View Feedback │
-     │     │ → Respond     │
-     │     └───────┬───────┘
-     │             │
-     │             ▼
-     │     ┌───────────────┐
-     │     │ Generate      │
-     │     │ Performance   │
-     │     │ Report        │
-     │     └───────┬───────┘
-     │             │
-     │             └──────────────┐
-     │                            │
-     ▼                            │
-┌───────────────┐                │
-│ Create Project│                │
-│ → Add Tasks   │                │
-│ → Assign      │                │
-└───────┬───────┘                │
-        │                         │
-        ▼                         │
-┌───────────────┐                │
-│ Manage        │                │
-│ Employees     │                │
-│ → Add/Edit    │                │
-│ → Delete      │                │
-└───────┬───────┘                │
-        │                         │
-        ▼                         │
-┌───────────────┐                │
-│ Create Goals  │                │
-│ → Track       │                │
-│ → Update      │                │
-└───────┬───────┘                │
-        │                         │
-        ▼                         │
-┌───────────────┐                │
-│ Give Feedback │                │
-│ → Respond     │                │
-│ → Track       │                │
-└───────┬───────┘                │
-        │                         │
-        ▼                         │
-┌───────────────┐                │
-│ Generate      │                │
-│ Reports       │                │
-│ → PDF Export  │                │
-│ → Analytics   │                │
-└───────┬───────┘                │
-        │                         │
-        └─────────────────────────┘
-                    │
-                    ▼
-        ┌──────────────────────┐
-        │  Event-Driven        │
-        │  Processing          │
-        │  → Notifications     │
-        │  → Performance       │
-        │    Updates           │
-        │  → Goal Tracking     │
-        │  → Reports           │
-        └──────────────────────┘
+     │     ┌──────────────────┐
+     │     │ Fetch All Data    │
+     │     │ • Performance     │
+     │     │ • Tasks           │
+     │     │ • Goals           │
+     │     │ • Feedback        │
+     │     └──────────┬────────┘
+     │                │
+     │                ▼
+     │     ┌──────────────────┐
+     │     │ Create PDF        │
+     │     │ (ReportLab)       │
+     │     │ • Header/Footer   │
+     │     │ • Charts          │
+     │     │ • Summary         │
+     │     └──────────┬────────┘
+     │                │
+     │                ▼
+     │     ┌──────────────────┐
+     │     │ Save to exports/  │
+     │     │ → Download Link   │
+     │     └───────────────────┘
+     │
+     ▼
+┌────────────────────┐
+│  Display Metrics   │
+│  • Performance     │
+│  • Trends          │
+│  • Charts          │
+└────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                                    EVENT CASCADE FLOW
+
+Any Action (Task/Goal/Feedback/Performance)
+         │
+         ▼
+┌────────────────────┐
+│  Event Published   │
+│  to Event Bus      │
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│  Event Handlers     │
+│  (AI-Powered)      │
+│  • Make Decisions  │
+│  • Trigger Actions  │
+└─────────┬──────────┘
+          │
+          ├──────────────┬──────────────┬──────────────┬──────────────┐
+          │              │              │              │              │
+          ▼              ▼              ▼              ▼              ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│ Performance  │ │ Notification │ │ Goal         │ │ Reporting    │ │ Export       │
+│ Agent        │ │ Agent        │ │ Agent        │ │ Agent        │ │ Agent        │
+│              │ │              │ │              │ │              │ │              │
+│ • Re-evaluate│ │ • RL Check   │ │ • Check      │ │ • Update     │ │ • Generate   │
+│ • Update     │ │ • Generate   │ │   Progress   │ │   Reports    │ │   CSV/PDF    │
+│ • Rank       │ │   Message    │ │ • Update     │ │ • Health     │ │              │
+│              │ │ • Send       │ │   Status     │ │   Score      │ │              │
+└──────┬───────┘ └──────┬───────┘ └──────┬───────┘ └──────┬───────┘ └──────┬───────┘
+       │                │                 │                │                │
+       │                │                 │                │                │
+       └────────────────┴─────────────────┴────────────────┴────────────────┘
+                                    │
+                                    ▼
+                          ┌────────────────────┐
+                          │  New Events        │
+                          │  Published         │
+                          │  (Cascade)         │
+                          └─────────┬──────────┘
+                                    │
+                                    ▼
+                          ┌────────────────────┐
+                          │  Cycle Continues   │
+                          │  (Event-Driven)    │
+                          └────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                                    DATA FLOW SUMMARY
+
+User Action
+    │
+    ▼
+Frontend (Streamlit)
+    │
+    ▼
+[API Mode] → FastAPI Backend → Agents
+[Direct Mode] → Agents Directly
+    │
+    ▼
+Event Bus → Event Handlers (AI-Powered)
+    │
+    ├─→ PerformanceAgent → ML/AI → Performance Score
+    ├─→ NotificationAgent → RL Model → Notifications
+    ├─→ GoalAgent → AI Status → Goal Updates
+    ├─→ FeedbackAgent → AI Analysis → Feedback Processing
+    ├─→ ReportingAgent → Reports & Analytics
+    └─→ ExportAgent → CSV/PDF Generation
+    │
+    ▼
+DataManager → Supabase Database
+    │
+    ▼
+Response → Frontend → User
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                                    KEY WORKFLOW FEATURES
+
+✓ Authentication: Supabase + Local Fallback
+✓ Role-Based Access: Owner/Manager/Employee
+✓ Event-Driven: All actions trigger events
+✓ AI-Powered: Decisions made by AI, not rules
+✓ ML Integration: Performance scoring with ML models
+✓ Real-Time: Notifications and updates
+✓ Automated: Performance tracking, goal monitoring
+✓ Comprehensive: Full CRUD operations
+✓ Reporting: PDF generation with charts
+✓ Analytics: Performance trends and insights
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 ```
 
 ---
 
-## Summary
+## Workflow Summary
 
-**Key Workflow Characteristics:**
+**Main Flow:**
+1. **Authentication** → User logs in (Supabase/Local)
+2. **Dashboard** → Role-based view of data
+3. **Task Management** → Create/Update/Complete tasks
+4. **Event Processing** → Events trigger AI-powered handlers
+5. **Performance Evaluation** → ML/AI calculates performance scores
+6. **Notifications** → RL model decides when to notify
+7. **Goal Management** → AI determines goal status
+8. **Feedback System** → AI analyzes feedback sentiment
+9. **Report Generation** → PDF reports with charts
 
-1. **Authentication Flow**: Secure login with Supabase + local fallback
-2. **Task Management**: Create → Update → Complete → Event Cascade
-3. **Performance Evaluation**: Data Collection → ML/AI Calculation → Storage → Events
-4. **Report Generation**: Data Fetch → PDF Creation → Download
-5. **Goal Management**: Create → Track → Update → AI Status → Events
-6. **Feedback System**: Create → AI Analysis → Respond → Thread Management
-7. **Event-Driven**: Action → Event → AI Decision → Multiple Handlers → Cascade
-8. **User Journey**: Role-based flows with different capabilities
+**Event Cascade:**
+- Every action publishes events
+- Events trigger multiple AI-powered handlers
+- Handlers make intelligent decisions
+- New events cascade to other handlers
+- Complete automation and real-time updates
 
-**Workflow Features:**
-- ✅ Role-based access control
-- ✅ Event-driven architecture
-- ✅ AI-powered decision making
-- ✅ ML model integration
-- ✅ Real-time notifications
-- ✅ Automated performance tracking
-- ✅ Comprehensive reporting
-
+**Technology Integration:**
+- **ML Models**: Performance scoring, trend analysis
+- **AI APIs**: Decision making, message generation
+- **RL Model**: Notification optimization
+- **Event Bus**: Decoupled architecture
+- **Supabase**: Data persistence
