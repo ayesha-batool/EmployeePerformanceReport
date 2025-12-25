@@ -37,3 +37,29 @@ exports/
 # Logs
 *.log
 logs/
+
+# Gradle and build files
+.gradle/
+gradle/
+build/
+*.gradle
+
+# Node modules
+node_modules/
+
+# React Native (if any)
+android/
+ios/
+
+# Gradle (if any)
+.gradle/
+gradle/
+build/
+*.gradle
+
+# Node modules (if any)
+node_modules/
+
+# React Native (if any)
+android/
+ios/
